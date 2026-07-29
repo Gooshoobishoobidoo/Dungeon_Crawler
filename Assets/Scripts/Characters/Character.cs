@@ -18,6 +18,10 @@ public class Character : MonoBehaviour
     public bool hasActedThisTurn;
     public bool isMoving;
 
+    // NonSerialized: Unity can't represent null for an embedded [Serializable] class field -
+    // it silently replaces null with a default instance the moment the Inspector touches this
+    // component, which broke plannedAction-based readiness checks. This must stay pure runtime state.
+    [System.NonSerialized]
     public PlannedAction plannedAction;
 
     private NavMeshAgent agent;
@@ -43,6 +47,14 @@ public class Character : MonoBehaviour
                 isMoving = false;
                 agent.ResetPath();
             }
+        }
+
+        // Cooldowns run in real time, but only while a turn is actually executing - Planning
+        // is the player thinking, not gameplay time passing.
+        if (currentCooldown > 0 && CombatManager.Instance != null &&
+            CombatManager.Instance.currentPhase == CombatPhase.Execution)
+        {
+            currentCooldown = Mathf.Max(0, currentCooldown - Time.deltaTime);
         }
     }
 
@@ -71,6 +83,12 @@ public class Character : MonoBehaviour
         if (agent == null) return;
         agent.SetDestination(destination);
         isMoving = true;
+    }
+
+    public void StopMoving()
+    {
+        if (agent != null) agent.ResetPath();
+        isMoving = false;
     }
 
     public void TakeDamage(int amount)

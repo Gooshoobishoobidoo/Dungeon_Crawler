@@ -86,6 +86,12 @@ public class PlanningController : MonoBehaviour
                 return;
             }
 
+            if (hitCharacter == ActiveCharacter)
+            {
+                Debug.LogWarning($"{pendingAbility.abilityName} can't target yourself - use a Self ability for that.");
+                return;
+            }
+
             planned.targetCharacter = hitCharacter;
             planned.abilityTarget = hitCharacter.transform.position;
         }
@@ -143,7 +149,7 @@ public class PlanningController : MonoBehaviour
 
     private void BuildUI()
     {
-        if (FindFirstObjectByType<EventSystem>() == null)
+        if (FindAnyObjectByType<EventSystem>() == null)
         {
             var esGO = new GameObject("EventSystem");
             esGO.AddComponent<EventSystem>();

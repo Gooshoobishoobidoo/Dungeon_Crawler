@@ -27,6 +27,8 @@ public class PartyBarUI : MonoBehaviour
         layout.spacing = 10;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
 
         gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
 

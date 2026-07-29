@@ -389,7 +389,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1312295543}
   - component: {fileID: 1312295542}
-  - component: {fileID: 1312295544}
   m_Layer: 0
   m_Name: CombatManager
   m_TagString: Untagged
@@ -415,6 +414,7 @@ MonoBehaviour:
   - {fileID: 2057041603}
   currentPhase: 0
   turnNumber: 0
+  enemyMoveRange: 3
 --- !u!4 &1312295543
 Transform:
   m_ObjectHideFlags: 0
@@ -430,19 +430,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1312295544
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1312295541}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: db6c9278ae17a5440bcd7eaef3aeb8be, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CombatTestHelper
-  moveRange: 3
 --- !u!1 &1554440945
 GameObject:
   m_ObjectHideFlags: 0
@@ -609,11 +596,6 @@ MonoBehaviour:
   isDead: 0
   hasActedThisTurn: 0
   isMoving: 0
-  plannedAction:
-    moveDestination: {x: 0, y: 0, z: 0}
-    ability: {fileID: 0}
-    abilityTarget: {x: 0, y: 0, z: 0}
-    targetCharacter: {fileID: 0}
 --- !u!4 &1702702581
 Transform:
   m_ObjectHideFlags: 0
@@ -623,7 +605,7 @@ Transform:
   m_GameObject: {fileID: 1702702579}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0, y: 0, z: -0}
+  m_LocalPosition: {x: -1.74, y: 0, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -766,6 +748,50 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2037243144}
   m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &2046707064
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2046707066}
+  - component: {fileID: 2046707065}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2046707065
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046707064}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf4a6c0a81a0b01ec6c0ddcd2227e5bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlanningController
+--- !u!4 &2046707066
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2046707064}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.83288, y: 0, z: -3.20332}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2057041602
 GameObject:
   m_ObjectHideFlags: 0
@@ -805,11 +831,6 @@ MonoBehaviour:
   isDead: 0
   hasActedThisTurn: 0
   isMoving: 0
-  plannedAction:
-    moveDestination: {x: 0, y: 0, z: 0}
-    ability: {fileID: 0}
-    abilityTarget: {x: 0, y: 0, z: 0}
-    targetCharacter: {fileID: 0}
 --- !u!4 &2057041604
 Transform:
   m_ObjectHideFlags: 0
@@ -819,7 +840,7 @@ Transform:
   m_GameObject: {fileID: 2057041602}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0, y: 0, z: -0}
+  m_LocalPosition: {x: -0, y: 0, z: -2.48}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -950,3 +971,4 @@ SceneRoots:
   - {fileID: 1702702581}
   - {fileID: 2057041604}
   - {fileID: 86795623}
+  - {fileID: 2046707066}

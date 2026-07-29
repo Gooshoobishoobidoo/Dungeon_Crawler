@@ -12,6 +12,7 @@ public class AbilityBarUI : MonoBehaviour
         public GameObject go;
         public Button button;
         public Ability ability;
+        public Text label;
     }
 
     private readonly List<Entry> entries = new List<Entry>();
@@ -29,6 +30,8 @@ public class AbilityBarUI : MonoBehaviour
         layout.spacing = 10;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
 
         gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
     }
@@ -74,7 +77,7 @@ public class AbilityBarUI : MonoBehaviour
         label.color = Color.white;
         label.text = $"{ability.abilityName}\n({ability.manaCost} MP / {ability.staminaCost} SP)";
 
-        return new Entry { go = buttonGO, button = button, ability = ability };
+        return new Entry { go = buttonGO, button = button, ability = ability, label = label };
     }
 
     private void Clear()
@@ -89,8 +92,14 @@ public class AbilityBarUI : MonoBehaviour
 
         foreach (Entry e in entries)
         {
-            e.button.interactable = shownCharacter.currentMana >= e.ability.manaCost
+            bool onCooldown = shownCharacter.currentCooldown > 0;
+            e.button.interactable = !onCooldown
+                && shownCharacter.currentMana >= e.ability.manaCost
                 && shownCharacter.currentStamina >= e.ability.staminaCost;
+
+            e.label.text = onCooldown
+                ? $"{e.ability.abilityName}\n(CD {Mathf.CeilToInt(shownCharacter.currentCooldown)})"
+                : $"{e.ability.abilityName}\n({e.ability.manaCost} MP / {e.ability.staminaCost} SP)";
         }
     }
 }
