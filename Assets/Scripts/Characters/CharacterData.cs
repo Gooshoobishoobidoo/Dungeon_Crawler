@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public enum CharacterClass
@@ -26,6 +27,9 @@ public class CharacterData : ScriptableObject
     public int attackPower;
     public int defense;
     public float critChance;  // 0.0 - 1.0
+
+    [Header("Abilities")]
+    public List<Ability> abilities;
 
     [Header("Visuals")]
     public GameObject characterPrefab;

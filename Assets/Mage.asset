@@ -22,5 +22,7 @@ MonoBehaviour:
   attackPower: 22
   defense: 3
   critChance: 0.15
+  abilities:
+  - {fileID: 11400000, guid: a1ebd18622bbddcf03595ddf8554410a, type: 2}
   characterPrefab: {fileID: 0}
   portrait: {fileID: 0}

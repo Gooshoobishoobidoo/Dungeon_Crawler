@@ -21,6 +21,9 @@ public class CombatManager : MonoBehaviour
     public CombatPhase currentPhase = CombatPhase.Planning;
     public int turnNumber = 0;
 
+    [Header("Placeholder Enemy AI")]
+    public float enemyMoveRange = 3f; // random move radius until real enemy AI exists
+
     private void Awake()
     {
         // Singleton pattern - only one CombatManager can exist
@@ -49,20 +52,55 @@ public class CombatManager : MonoBehaviour
 
         // Reset all characters for the new turn
         foreach (Character c in playerCharacters)
+        {
             c.hasActedThisTurn = false;
+            c.plannedAction = null;
+        }
 
         foreach (Character c in enemyCharacters)
+        {
             c.hasActedThisTurn = false;
+            c.plannedAction = null;
+        }
 
-        // TODO: trigger Planning UI here
-        // TODO: trigger Enemy AI planning here
+        // Real player orders come from PlanningController (Assets/Scripts/UI); it calls
+        // OnPlanningComplete() once every living player character has a plannedAction.
+        AssignPlaceholderEnemyActions();
     }
 
-    // Called by UI when all player characters have been assigned actions
+    // Called by the planning UI when all player characters have been assigned actions
     public void OnPlanningComplete()
     {
         Debug.Log("Planning complete, starting execution...");
         StartCoroutine(ExecutionPhase());
+    }
+
+    public bool AllPlayersReady()
+    {
+        return playerCharacters.TrueForAll(c => c.isDead || c.plannedAction != null);
+    }
+
+    // Placeholder until real enemy AI exists: gives every living enemy a random move so
+    // combat stays playable end-to-end. Remove once enemy decision-making is implemented.
+    private void AssignPlaceholderEnemyActions()
+    {
+        foreach (Character c in enemyCharacters)
+        {
+            if (c.isDead) continue;
+
+            Vector3 randomOffset = new Vector3(
+                Random.Range(-enemyMoveRange, enemyMoveRange),
+                0f,
+                Random.Range(-enemyMoveRange, enemyMoveRange));
+
+            c.plannedAction = new PlannedAction
+            {
+                moveDestination = c.transform.position + randomOffset,
+                ability = null,
+                abilityTarget = Vector3.zero,
+                targetCharacter = null
+            };
+        }
     }
 
     // -------------------------
