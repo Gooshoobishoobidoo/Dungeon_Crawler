@@ -21,9 +21,6 @@ public class CombatManager : MonoBehaviour
     public CombatPhase currentPhase = CombatPhase.Planning;
     public int turnNumber = 0;
 
-    [Header("Placeholder Enemy AI")]
-    public float enemyMoveRange = 3f; // random move radius until real enemy AI exists
-
     private void Awake()
     {
         // Singleton pattern - only one CombatManager can exist
@@ -66,7 +63,7 @@ public class CombatManager : MonoBehaviour
 
         // Real player orders come from PlanningController (Assets/Scripts/UI); it calls
         // OnPlanningComplete() once every living player character has a plannedAction.
-        AssignPlaceholderEnemyActions();
+        AssignEnemyActions();
     }
 
     // Called by the planning UI when all player characters have been assigned actions
@@ -81,27 +78,99 @@ public class CombatManager : MonoBehaviour
         return playerCharacters.TrueForAll(c => c.isDead || c.plannedAction != null);
     }
 
-    // Placeholder until real enemy AI exists: gives every living enemy a random move so
-    // combat stays playable end-to-end. Remove once enemy decision-making is implemented.
-    private void AssignPlaceholderEnemyActions()
+    // Every living enemy: pick the nearest living opponent, use the best ability currently
+    // usable against them if already in range, otherwise close the distance.
+    private void AssignEnemyActions()
     {
         foreach (Character c in enemyCharacters)
         {
             if (c.isDead) continue;
 
-            Vector3 randomOffset = new Vector3(
-                Random.Range(-enemyMoveRange, enemyMoveRange),
-                0f,
-                Random.Range(-enemyMoveRange, enemyMoveRange));
+            Character target = SelectNearestTarget(c, playerCharacters);
+            if (target == null) continue;
 
-            c.plannedAction = new PlannedAction
+            Ability ability = ChooseBestAbility(c, target);
+            float distanceToTarget = Vector3.Distance(c.transform.position, target.transform.position);
+
+            if (ability != null && distanceToTarget <= ability.range)
             {
-                moveDestination = c.transform.position + randomOffset,
-                ability = null,
-                abilityTarget = Vector3.zero,
-                targetCharacter = null
-            };
+                c.plannedAction = BuildAttackAction(c, ability, target);
+            }
+            else if (ability != null)
+            {
+                c.plannedAction = BuildApproachAction(c, target, ability.range);
+            }
+            else
+            {
+                c.plannedAction = BuildApproachAction(c, target, 0f);
+            }
         }
+    }
+
+    // Isolated so different enemy types can plug in other priorities later (e.g. lowest HP)
+    // without touching the rest of the decision flow.
+    private Character SelectNearestTarget(Character c, List<Character> candidates)
+    {
+        Character nearest = null;
+        float nearestDistance = float.MaxValue;
+
+        foreach (Character candidate in candidates)
+        {
+            if (candidate.isDead) continue;
+            float distance = Vector3.Distance(c.transform.position, candidate.transform.position);
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearest = candidate;
+            }
+        }
+
+        return nearest;
+    }
+
+    // Highest-damage ability the character can currently afford and isn't on cooldown.
+    // Self abilities are excluded - there's no self-buff/heal AI logic yet.
+    private Ability ChooseBestAbility(Character c, Character target)
+    {
+        if (c.data.abilities == null || c.currentCooldown > 0) return null;
+
+        Ability best = null;
+        foreach (Ability ability in c.data.abilities)
+        {
+            if (ability == null || ability.abilityType == AbilityType.Self) continue;
+            if (c.currentMana < ability.manaCost || c.currentStamina < ability.staminaCost) continue;
+            if (best == null || ability.damage > best.damage) best = ability;
+        }
+
+        return best;
+    }
+
+    private PlannedAction BuildAttackAction(Character c, Ability ability, Character target)
+    {
+        return new PlannedAction
+        {
+            moveDestination = c.transform.position,
+            ability = ability,
+            abilityTarget = target.transform.position,
+            targetCharacter = ability.abilityType == AbilityType.UnitTarget ? target : null
+        };
+    }
+
+    // Moves toward target, stopping ~90% of the way to keepRange (0 = walk all the way there).
+    private PlannedAction BuildApproachAction(Character c, Character target, float keepRange)
+    {
+        Vector3 toTarget = target.transform.position - c.transform.position;
+        float distance = toTarget.magnitude;
+        float travel = Mathf.Max(0, distance - keepRange * 0.9f);
+        Vector3 destination = c.transform.position + toTarget.normalized * travel;
+
+        return new PlannedAction
+        {
+            moveDestination = destination,
+            ability = null,
+            abilityTarget = Vector3.zero,
+            targetCharacter = null
+        };
     }
 
     // -------------------------
