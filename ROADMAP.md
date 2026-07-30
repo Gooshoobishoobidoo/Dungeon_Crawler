@@ -31,11 +31,16 @@ flee/sneak past) → repeat until the area's clear or you push on → next area.
       cooldowns now tick during Exploration too, not just mid-fight; `Flee` fails if still within
       an enemy's detection radius; `EnemyPatrol` re-arms after combat ends instead of going permanently inert
 
-## Phase 3 — Looting & scavenging
+## Phase 3 — Looting & scavenging (done)
 
-- [ ] Item data model
-- [ ] World pickups
-- [ ] Inventory
+- [x] `ItemData`: Consumable/Currency item definitions (`Assets/Scripts/Items/`)
+- [x] `ItemPickup`: click-to-target world pickups, collected once the party walks into range —
+      currency goes straight to `DungeonManager.currency`, everything else to the nearest
+      living party member's `Character.inventory`
+- [x] Per-character inventory (`Character.inventory`) + shared party currency pool
+- [x] Sample content: `HealingPotion` (Consumable), `GoldPouch` (Currency)
+- [ ] **Not in scope yet:** using/consuming an item from inventory — items can be picked up and
+      stored, but there's no UI to actually drink a potion. Natural next follow-up.
 
 ## Phase 4 — Party selection & run structure
 

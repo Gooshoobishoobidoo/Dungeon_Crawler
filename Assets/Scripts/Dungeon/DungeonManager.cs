@@ -20,6 +20,10 @@ public class DungeonManager : MonoBehaviour
     [Header("State")]
     public GameMode currentMode = GameMode.Exploration;
 
+    // Shared party-wide pool - currency isn't really an "item" any one character carries,
+    // unlike everything else in inventory which is per-character.
+    public int currency;
+
     private readonly List<EnemyPatrol> allEnemies = new List<EnemyPatrol>();
 
     private void Awake()

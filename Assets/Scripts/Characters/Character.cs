@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -11,6 +12,9 @@ public class Character : MonoBehaviour
     public int currentMana;
     public int currentStamina;
     public float currentCooldown;
+
+    [Header("Inventory")]
+    public List<ItemData> inventory = new List<ItemData>();
 
     [Header("State")]
     public bool isPlayerControlled;
@@ -137,6 +141,11 @@ public class Character : MonoBehaviour
     public void RestoreStamina(int amount)
     {
         currentStamina = Mathf.Min(data.maxStamina, currentStamina + amount);
+    }
+
+    public void Heal(int amount)
+    {
+        currentHealth = Mathf.Min(data.maxHealth, currentHealth + amount);
     }
 
     // Used by rest points between dungeon areas. Doesn't revive the dead - callers are
