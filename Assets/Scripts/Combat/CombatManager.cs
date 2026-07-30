@@ -78,6 +78,11 @@ public class CombatManager : MonoBehaviour
         return playerCharacters.TrueForAll(c => c.isDead || c.plannedAction != null);
     }
 
+    // Set once CheckCombatEnd finds a winner. Nothing clears plannedAction/cooldowns after
+    // combat ends (StartPlanningPhase, the only place that does, never runs again), so the
+    // planning UI needs this to know to stop accepting input rather than replaying stale orders.
+    public bool CombatEnded { get; private set; }
+
     // Every living enemy: pick the nearest living opponent, use the best ability currently
     // usable against them if already in range, otherwise close the distance.
     private void AssignEnemyActions()
@@ -336,6 +341,7 @@ public class CombatManager : MonoBehaviour
         if (allPlayersDead)
         {
             Debug.Log("All players dead - Game Over!");
+            CombatEnded = true;
             // TODO: trigger game over screen
             return;
         }
@@ -343,6 +349,7 @@ public class CombatManager : MonoBehaviour
         if (allEnemiesDead)
         {
             Debug.Log("All enemies dead - Combat Won!");
+            CombatEnded = true;
             // TODO: trigger victory screen
             return;
         }

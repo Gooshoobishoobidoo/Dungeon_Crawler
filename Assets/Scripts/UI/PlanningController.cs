@@ -39,6 +39,12 @@ public class PlanningController : MonoBehaviour
 
     private void Update()
     {
+        if (CombatManager.Instance != null && CombatManager.Instance.CombatEnded)
+        {
+            if (endPlanningButton != null) endPlanningButton.interactable = false;
+            return;
+        }
+
         if (endPlanningButton != null)
             endPlanningButton.interactable = CombatManager.Instance != null && CombatManager.Instance.AllPlayersReady();
 
@@ -89,6 +95,12 @@ public class PlanningController : MonoBehaviour
             if (hitCharacter == ActiveCharacter)
             {
                 Debug.LogWarning($"{pendingAbility.abilityName} can't target yourself - use a Self ability for that.");
+                return;
+            }
+
+            if (hitCharacter.isDead)
+            {
+                Debug.LogWarning($"{pendingAbility.abilityName} can't target a defeated character.");
                 return;
             }
 
