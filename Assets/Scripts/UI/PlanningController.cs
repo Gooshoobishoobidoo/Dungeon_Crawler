@@ -18,8 +18,10 @@ public class PlanningController : MonoBehaviour
 
     public Character ActiveCharacter { get; private set; }
 
+    private GameObject canvasGO;
     private PartyBarUI partyBar;
     private AbilityBarUI abilityBar;
+    private InventoryBarUI inventoryBar;
     private Button endPlanningButton;
     private Button fleeButton;
     private Camera cam;
@@ -40,6 +42,17 @@ public class PlanningController : MonoBehaviour
 
     private void Update()
     {
+        // Standalone combat-test scenes (no DungeonManager) always show this UI, matching the
+        // original single-encounter workflow. Everywhere else, this whole panel - including the
+        // shared InventoryBarUI and the End Planning/Flee buttons - must be fully hidden outside
+        // Combat mode, not just have its logic gated: a merely-inactive-but-still-visible combat
+        // UI sits at the same screen position as ExplorationController's own panels and can
+        // silently intercept clicks meant for them, and a stale reachable End Planning button
+        // can restart an old encounter's ExecutionPhase using whatever enemies it last had.
+        bool inCombat = DungeonManager.Instance == null || DungeonManager.Instance.currentMode == GameMode.Combat;
+        if (canvasGO != null) canvasGO.SetActive(inCombat);
+        if (!inCombat) return;
+
         if (CombatManager.Instance != null && CombatManager.Instance.CombatEnded)
         {
             if (endPlanningButton != null) endPlanningButton.interactable = false;
@@ -119,6 +132,7 @@ public class PlanningController : MonoBehaviour
         }
 
         planned.ability = pendingAbility;
+        planned.itemToUse = null;
         Debug.Log($"{ActiveCharacter.data.characterName} will use {pendingAbility.abilityName}.");
 
         mode = TargetMode.AwaitingMove;
@@ -141,6 +155,7 @@ public class PlanningController : MonoBehaviour
         mode = TargetMode.AwaitingMove;
         pendingAbility = null;
         abilityBar?.Show(c);
+        inventoryBar?.Show(c, OnUseItemSelected);
     }
 
     public void SelectAbility(Ability ability)
@@ -151,6 +166,7 @@ public class PlanningController : MonoBehaviour
         {
             PlannedAction planned = EnsurePlannedAction(ActiveCharacter);
             planned.ability = ability;
+            planned.itemToUse = null;
             planned.abilityTarget = ActiveCharacter.transform.position;
             planned.targetCharacter = null;
             Debug.Log($"{ActiveCharacter.data.characterName} will use {ability.abilityName} on self.");
@@ -160,6 +176,18 @@ public class PlanningController : MonoBehaviour
         mode = TargetMode.AwaitingAbilityTarget;
         pendingAbility = ability;
         Debug.Log($"Select a target for {ability.abilityName}.");
+    }
+
+    // No targeting step - items are self-only for now. Mutually exclusive with an ability,
+    // same one-action-per-turn constraint everything else in Planning follows.
+    private void OnUseItemSelected(Character character, ItemData item)
+    {
+        PlannedAction planned = EnsurePlannedAction(character);
+        planned.itemToUse = item;
+        planned.ability = null;
+        mode = TargetMode.AwaitingMove;
+        pendingAbility = null;
+        Debug.Log($"{character.data.characterName} will use {item.itemName}.");
     }
 
     private void OnEndPlanningClicked()
@@ -182,7 +210,7 @@ public class PlanningController : MonoBehaviour
             esGO.AddComponent<InputSystemUIInputModule>();
         }
 
-        var canvasGO = new GameObject("PlanningCanvas");
+        canvasGO = new GameObject("PlanningCanvas");
         Canvas canvas = canvasGO.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvasGO.AddComponent<CanvasScaler>();
@@ -197,6 +225,11 @@ public class PlanningController : MonoBehaviour
         abilityBarGO.transform.SetParent(canvasGO.transform, false);
         abilityBar = abilityBarGO.AddComponent<AbilityBarUI>();
         abilityBar.Build();
+
+        var inventoryBarGO = new GameObject("InventoryBar");
+        inventoryBarGO.transform.SetParent(canvasGO.transform, false);
+        inventoryBar = inventoryBarGO.AddComponent<InventoryBarUI>();
+        inventoryBar.Build();
 
         Vector2 bottomRight = new Vector2(1, 0);
         Vector2 buttonSize = new Vector2(160, 40);

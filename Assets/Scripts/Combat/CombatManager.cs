@@ -289,23 +289,30 @@ public class CombatManager : MonoBehaviour
         foreach (Character c in allCharacters)
         {
             if (c.isDead || c.plannedAction == null) continue;
-            ExecuteCharacterAction(c);
-            yield return new WaitForSeconds(0.5f);
+            yield return ExecuteCharacterAction(c);
         }
 
         StartResolutionPhase();
     }
 
-    private void ExecuteCharacterAction(Character c)
+    private IEnumerator ExecuteCharacterAction(Character c)
     {
-        if (c.plannedAction == null) return;
+        if (c.plannedAction == null) yield break;
+
+        if (c.plannedAction.itemToUse != null)
+        {
+            yield return ExecuteItemUse(c, c.plannedAction.itemToUse);
+            c.hasActedThisTurn = true;
+            yield break;
+        }
 
         Ability ability = c.plannedAction.ability;
         if (ability == null)
         {
             Debug.Log($"{c.data.characterName} uses no ability.");
             c.hasActedThisTurn = true;
-            return;
+            yield return new WaitForSeconds(0.5f);
+            yield break;
         }
 
         c.SpendMana(ability.manaCost);
@@ -330,6 +337,17 @@ public class CombatManager : MonoBehaviour
         }
 
         c.hasActedThisTurn = true;
+        yield return new WaitForSeconds(0.5f);
+    }
+
+    // Item use delays resolution by its own useTime instead of the flat 0.5s stagger every
+    // other action gets - the same idea (give the action a moment to read/land), just item-specific.
+    private IEnumerator ExecuteItemUse(Character c, ItemData item)
+    {
+        Debug.Log($"{c.data.characterName} uses {item.itemName}.");
+        c.inventory.Remove(item);
+        yield return new WaitForSeconds(item.useTime);
+        if (!c.isDead) item.ApplyTo(c);
     }
 
     private void ResolveUnitTarget(Character c, Ability ability)

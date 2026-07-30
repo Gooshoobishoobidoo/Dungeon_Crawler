@@ -39,15 +39,41 @@ flee/sneak past) → repeat until the area's clear or you push on → next area.
       living party member's `Character.inventory`
 - [x] Per-character inventory (`Character.inventory`) + shared party currency pool
 - [x] Sample content: `HealingPotion` (Consumable), `GoldPouch` (Currency)
-- [ ] **Not in scope yet:** using/consuming an item from inventory — items can be picked up and
-      stored, but there's no UI to actually drink a potion. Natural next follow-up.
 
-## Phase 4 — Party selection & run structure
+## Phase 3.5 — Anytime item use (done)
+
+- [x] `ItemData.useTime`/`ApplyTo`: items cost no mana/stamina — balanced by a delay before the
+      effect lands instead
+- [x] `Character.UseItem`: exploration-mode use, self-contained (removes from inventory
+      immediately, `isBusy` blocks new moves for that character until `useTime` elapses)
+- [x] `PlannedAction.itemToUse` + `CombatManager.ExecuteCharacterAction` (now a coroutine): combat
+      use, delays that character's resolution by the item's `useTime` instead of the flat 0.5s
+      stagger — mutually exclusive with using an ability, still one action per turn
+- [x] `InventoryBarUI`: shared item-button row, shown by both `PlanningController` (combat) and
+      `ExplorationController` (click a party member to open their inventory)
+
+## Phase 4 — Multi-action turn economy
+
+Bigger combat rework: spend as many actions as your stamina/mana allow in a turn instead of
+exactly one, with resource regen and the risk of running dry mid-fight. Deliberately split into
+two steps rather than one big rework — see the plan discussion for why the second step is a
+genuinely different execution architecture (a live timeline, not a fixed sequence).
+
+- [ ] **Step 1**: `PlannedAction` holds a queue of actions instead of one; Planning UI lets you
+      add multiple abilities per turn gated by current resources, shows the queued order; still
+      resolved with today's simple sequential execution model (no mid-execution recharge-waiting)
+- [ ] Resource regen: mana/stamina recover some amount each turn (rate/formula TBD, likely a new
+      tunable `CharacterData` field)
+- [ ] **Step 2** (separate follow-up once Step 1's feel is known): simultaneous execution where a
+      character short on resources for their next queued action waits mid-execution until they
+      regen enough, rather than everything resolving in a fixed speed-sorted sequence
+
+## Phase 5 — Party selection & run structure
 
 - [ ] Party-selection screen before entering the dungeon
 - [ ] Real game-over / return-to-town flow on a full party wipe (currently just a log/TODO in `DungeonManager.GameOver`)
 
-## Phase 5 — Polish
+## Phase 6 — Polish
 
 - [ ] Smarter detection (vision cones / line-of-sight instead of a plain radius)
 - [ ] Real formation-based group movement (today the whole party converges on one clicked point)

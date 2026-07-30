@@ -18,5 +18,6 @@ MonoBehaviour:
   healAmount: 0
   manaAmount: 0
   staminaAmount: 0
+  useTime: 0
   currencyValue: 25
   icon: {fileID: 0}

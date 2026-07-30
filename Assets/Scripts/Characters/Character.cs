@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -21,6 +22,7 @@ public class Character : MonoBehaviour
     public bool isDead;
     public bool hasActedThisTurn;
     public bool isMoving;
+    public bool isBusy; // channeling an item's use time - ExplorationController won't move this character
 
     // NonSerialized: Unity can't represent null for an embedded [Serializable] class field -
     // it silently replaces null with a default instance the moment the Inspector touches this
@@ -165,6 +167,24 @@ public class Character : MonoBehaviour
         if (agent != null) agent.enabled = false;
         Debug.Log($"{data.characterName} has died.");
     }
+
+    // Exploration-mode item use: self-contained and fire-and-forget from the caller's side.
+    // The item is removed the instant use starts - you're committed, so dying or getting
+    // interrupted mid-channel wastes it, which is the point of useTime as a risk/cost.
+    public void UseItem(ItemData item)
+    {
+        if (item == null || !inventory.Contains(item)) return;
+        inventory.Remove(item);
+        StartCoroutine(UseItemRoutine(item));
+    }
+
+    private IEnumerator UseItemRoutine(ItemData item)
+    {
+        isBusy = true;
+        yield return new WaitForSeconds(item.useTime);
+        if (!isDead) item.ApplyTo(this);
+        isBusy = false;
+    }
 }
 
 [System.Serializable]
@@ -172,6 +192,7 @@ public class PlannedAction
 {
     public Vector3 moveDestination;
     public Ability ability;
+    public ItemData itemToUse; // mutually exclusive with ability - one action per turn, for now
     public Vector3 abilityTarget;
     public Character targetCharacter;
 }
