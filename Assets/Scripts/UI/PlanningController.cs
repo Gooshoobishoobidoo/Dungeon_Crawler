@@ -60,8 +60,11 @@ public class PlanningController : MonoBehaviour
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         if (ActiveCharacter == null || cam == null) return;
 
+        // Ignore triggers - see ExplorationController for why (a tall trigger volume like
+        // RestRoomTransition's would otherwise intercept clicks meant for the ground/a character).
         Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-        if (!Physics.Raycast(ray, out RaycastHit hit, 200f)) return;
+        if (!Physics.Raycast(ray, out RaycastHit hit, 200f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            return;
 
         if (mode == TargetMode.AwaitingAbilityTarget && pendingAbility != null)
         {
@@ -124,7 +127,11 @@ public class PlanningController : MonoBehaviour
 
     private PlannedAction EnsurePlannedAction(Character c)
     {
-        if (c.plannedAction == null) c.plannedAction = new PlannedAction();
+        // A fresh PlannedAction's moveDestination defaults to Vector3.zero (world origin) -
+        // targeting an ability without first clicking a move would otherwise walk the
+        // character to (0,0,0). Default to holding position instead.
+        if (c.plannedAction == null)
+            c.plannedAction = new PlannedAction { moveDestination = c.transform.position };
         return c.plannedAction;
     }
 
@@ -191,46 +198,14 @@ public class PlanningController : MonoBehaviour
         abilityBar = abilityBarGO.AddComponent<AbilityBarUI>();
         abilityBar.Build();
 
-        endPlanningButton = BuildActionButton(canvasGO.transform, "End Planning",
-            new Vector2(-20, 20), new Color(0.2f, 0.6f, 0.2f), OnEndPlanningClicked);
-        fleeButton = BuildActionButton(canvasGO.transform, "Flee",
-            new Vector2(-190, 20), new Color(0.6f, 0.2f, 0.2f), OnFleeClicked);
-    }
+        Vector2 bottomRight = new Vector2(1, 0);
+        Vector2 buttonSize = new Vector2(160, 40);
 
-    private Button BuildActionButton(Transform parent, string text, Vector2 anchoredPosition,
-        Color color, UnityEngine.Events.UnityAction onClick)
-    {
-        var buttonGO = new GameObject($"{text}Button");
-        buttonGO.transform.SetParent(parent, false);
-
-        var rect = buttonGO.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(1, 0);
-        rect.anchorMax = new Vector2(1, 0);
-        rect.pivot = new Vector2(1, 0);
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = new Vector2(160, 40);
-
-        var image = buttonGO.AddComponent<Image>();
-        image.color = color;
-
-        var button = buttonGO.AddComponent<Button>();
-        button.targetGraphic = image;
-        button.onClick.AddListener(onClick);
-
-        var labelGO = new GameObject("Label");
-        labelGO.transform.SetParent(buttonGO.transform, false);
-        var labelRect = labelGO.AddComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-
-        var label = labelGO.AddComponent<Text>();
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = Color.white;
-        label.text = text;
-
-        return button;
+        endPlanningButton = UIButtonFactory.Build(canvasGO.transform, "End Planning",
+            bottomRight, bottomRight, bottomRight, new Vector2(-20, 20), buttonSize,
+            new Color(0.2f, 0.6f, 0.2f), OnEndPlanningClicked);
+        fleeButton = UIButtonFactory.Build(canvasGO.transform, "Flee",
+            bottomRight, bottomRight, bottomRight, new Vector2(-190, 20), buttonSize,
+            new Color(0.6f, 0.2f, 0.2f), OnFleeClicked);
     }
 }

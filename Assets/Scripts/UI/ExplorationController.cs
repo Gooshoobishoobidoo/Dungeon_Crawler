@@ -21,8 +21,12 @@ public class ExplorationController : MonoBehaviour
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         if (cam == null) return;
 
+        // Ignore triggers - Physics.Raycast hits them by default, and a tall trigger volume
+        // like RestRoomTransition's detection box would otherwise intercept clicks meant for
+        // the floor beneath it (its near face, not the floor, becoming the hit point).
         Ray ray = cam.ScreenPointToRay(Mouse.current.position.ReadValue());
-        if (!Physics.Raycast(ray, out RaycastHit hit, 200f)) return;
+        if (!Physics.Raycast(ray, out RaycastHit hit, 200f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            return;
 
         foreach (Character member in DungeonManager.Instance.party)
         {

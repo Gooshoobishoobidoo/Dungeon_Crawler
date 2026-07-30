@@ -52,11 +52,33 @@ public class CombatManager : MonoBehaviour
         StartPlanningPhase();
     }
 
-    public void Flee()
+    // Fails if any living enemy still has a living player within its own detection radius -
+    // reuses EnemyPatrol.detectionRadius rather than a separate flee-specific range, so it's
+    // the exact same "has this enemy noticed you" rule as triggering the fight in the first place.
+    public bool Flee()
     {
+        foreach (Character enemy in enemyCharacters)
+        {
+            if (enemy.isDead) continue;
+
+            EnemyPatrol patrol = enemy.GetComponent<EnemyPatrol>();
+            float detectionRadius = patrol != null ? patrol.detectionRadius : 0f;
+
+            foreach (Character player in playerCharacters)
+            {
+                if (player.isDead) continue;
+                if (Vector3.Distance(enemy.transform.position, player.transform.position) <= detectionRadius)
+                {
+                    Debug.Log($"Flee failed - still within {enemy.data.characterName}'s detection range.");
+                    return false;
+                }
+            }
+        }
+
         Debug.Log("Party flees the encounter.");
         CombatEnded = true;
         DungeonManager.Instance?.ReturnToExploration();
+        return true;
     }
 
     // -------------------------

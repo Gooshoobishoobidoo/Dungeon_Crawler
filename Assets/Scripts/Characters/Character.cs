@@ -29,6 +29,16 @@ public class Character : MonoBehaviour
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+
+        // NavMeshAgent moves the transform directly, not through physics, so without a
+        // Rigidbody here Unity treats this character as a static collider and never fires
+        // OnTrigger events for it (e.g. RestRoomTransition never noticing the party walk in) -
+        // even though it's visibly moving. Kinematic keeps it out of the physics simulation
+        // entirely; this only exists to make trigger detection work.
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity = false;
     }
 
     private void Start()
@@ -49,10 +59,15 @@ public class Character : MonoBehaviour
             }
         }
 
-        // Cooldowns run in real time, but only while a turn is actually executing - Planning
-        // is the player thinking, not gameplay time passing.
-        if (currentCooldown > 0 && CombatManager.Instance != null &&
-            CombatManager.Instance.currentPhase == CombatPhase.Execution)
+        // Cooldowns run in real time whenever real time is actually passing: during free-roam
+        // exploration, or while a turn is executing. They freeze during Planning (the player
+        // thinking, not gameplay time passing) - and, since CombatManager.currentPhase just
+        // stays wherever it last was once a fight ends, they'd otherwise stay frozen forever
+        // after every encounter instead of resuming once back in Exploration.
+        bool exploring = DungeonManager.Instance != null && DungeonManager.Instance.currentMode == GameMode.Exploration;
+        bool executingTurn = CombatManager.Instance != null && CombatManager.Instance.currentPhase == CombatPhase.Execution;
+
+        if (currentCooldown > 0 && (exploring || executingTurn))
         {
             currentCooldown = Mathf.Max(0, currentCooldown - Time.deltaTime);
         }
@@ -122,6 +137,17 @@ public class Character : MonoBehaviour
     public void RestoreStamina(int amount)
     {
         currentStamina = Mathf.Min(data.maxStamina, currentStamina + amount);
+    }
+
+    // Used by rest points between dungeon areas. Doesn't revive the dead - callers are
+    // expected to only invoke this on living party members, same as everywhere else in the
+    // codebase that operates on the whole party.
+    public void FullyRestore()
+    {
+        currentHealth = data.maxHealth;
+        currentMana = data.maxMana;
+        currentStamina = data.maxStamina;
+        currentCooldown = 0f;
     }
 
     private void Die()

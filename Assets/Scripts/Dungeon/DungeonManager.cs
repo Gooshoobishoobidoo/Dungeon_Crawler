@@ -46,12 +46,37 @@ public class DungeonManager : MonoBehaviour
         if (engaging.Count == 0) return;
 
         currentMode = GameMode.Combat;
+        FreezeExploration();
         CombatManager.Instance.BeginEncounter(LivingParty(), engaging);
+    }
+
+    // Stops any movement already in progress the instant combat starts - EnemyPatrol/
+    // ExplorationController only stop issuing *new* moves once currentMode != Exploration,
+    // they don't cancel one already underway (e.g. a patrolling enemy elsewhere mid-waypoint-walk).
+    private void FreezeExploration()
+    {
+        foreach (Character member in party)
+        {
+            if (!member.isDead) member.StopMoving();
+        }
+
+        foreach (EnemyPatrol enemy in allEnemies)
+        {
+            if (!enemy.Character.isDead) enemy.Character.StopMoving();
+        }
     }
 
     public void ReturnToExploration()
     {
         currentMode = GameMode.Exploration;
+
+        // Only enemies that were part of the ending encounter can be alerted right now (see
+        // OnEnemyAlerted - it gathers every currently-alerted enemy into the same fight), so
+        // this is safe to apply broadly rather than tracking "this encounter's enemies" separately.
+        foreach (EnemyPatrol enemy in allEnemies)
+        {
+            if (!enemy.Character.isDead) enemy.ResetAlert();
+        }
     }
 
     public void GameOver()

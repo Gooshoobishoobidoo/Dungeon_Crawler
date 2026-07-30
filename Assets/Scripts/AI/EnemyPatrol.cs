@@ -1,9 +1,9 @@
 using UnityEngine;
 
 // Idle/patrol behavior for an enemy Character outside of combat. Only acts while
-// DungeonManager is in Exploration mode; once alerted it stops patrolling/re-checking -
-// it's either now in the triggered fight, or (if the party fled and stayed nearby) will
-// naturally re-trigger since detection is just distance-based and continuous.
+// DungeonManager is in Exploration mode; once alerted it stops patrolling/re-checking until
+// DungeonManager.ReturnToExploration calls ResetAlert (on flee or after a fight elsewhere ends) -
+// otherwise this enemy could never trigger a second encounter after its first one.
 [RequireComponent(typeof(Character))]
 public class EnemyPatrol : MonoBehaviour
 {
@@ -21,6 +21,13 @@ public class EnemyPatrol : MonoBehaviour
     private void Awake()
     {
         Character = GetComponent<Character>();
+    }
+
+    // Called by DungeonManager once combat is over (flee or victory elsewhere), so this enemy
+    // can detect the party again rather than being permanently inert after its first alert.
+    public void ResetAlert()
+    {
+        IsAlerted = false;
     }
 
     private void Update()
