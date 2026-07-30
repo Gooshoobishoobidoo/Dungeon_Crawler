@@ -34,7 +34,29 @@ public class CombatManager : MonoBehaviour
 
     private void Start()
     {
+        // Standalone combat-test scenes (no DungeonManager) still auto-start on load, same as
+        // before. Scenes driven by DungeonManager wait for BeginEncounter() instead.
+        if (DungeonManager.Instance == null)
+            StartPlanningPhase();
+    }
+
+    // Called by DungeonManager when an enemy notices the party (or the party walks up to an
+    // already-alerted one). Resets CombatEnded/turnNumber since one CombatManager now runs
+    // multiple encounters back to back instead of just one for the whole scene.
+    public void BeginEncounter(List<Character> players, List<Character> enemies)
+    {
+        playerCharacters = players;
+        enemyCharacters = enemies;
+        CombatEnded = false;
+        turnNumber = 0;
         StartPlanningPhase();
+    }
+
+    public void Flee()
+    {
+        Debug.Log("Party flees the encounter.");
+        CombatEnded = true;
+        DungeonManager.Instance?.ReturnToExploration();
     }
 
     // -------------------------
@@ -343,6 +365,7 @@ public class CombatManager : MonoBehaviour
             Debug.Log("All players dead - Game Over!");
             CombatEnded = true;
             // TODO: trigger game over screen
+            DungeonManager.Instance?.GameOver();
             return;
         }
 
@@ -351,6 +374,7 @@ public class CombatManager : MonoBehaviour
             Debug.Log("All enemies dead - Combat Won!");
             CombatEnded = true;
             // TODO: trigger victory screen
+            DungeonManager.Instance?.ReturnToExploration();
             return;
         }
 

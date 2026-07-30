@@ -21,6 +21,7 @@ public class PlanningController : MonoBehaviour
     private PartyBarUI partyBar;
     private AbilityBarUI abilityBar;
     private Button endPlanningButton;
+    private Button fleeButton;
     private Camera cam;
 
     private TargetMode mode = TargetMode.AwaitingMove;
@@ -42,6 +43,7 @@ public class PlanningController : MonoBehaviour
         if (CombatManager.Instance != null && CombatManager.Instance.CombatEnded)
         {
             if (endPlanningButton != null) endPlanningButton.interactable = false;
+            if (fleeButton != null) fleeButton.interactable = false;
             return;
         }
 
@@ -159,6 +161,11 @@ public class PlanningController : MonoBehaviour
             CombatManager.Instance.OnPlanningComplete();
     }
 
+    private void OnFleeClicked()
+    {
+        CombatManager.Instance?.Flee();
+    }
+
     private void BuildUI()
     {
         if (FindAnyObjectByType<EventSystem>() == null)
@@ -184,27 +191,31 @@ public class PlanningController : MonoBehaviour
         abilityBar = abilityBarGO.AddComponent<AbilityBarUI>();
         abilityBar.Build();
 
-        BuildEndPlanningButton(canvasGO.transform);
+        endPlanningButton = BuildActionButton(canvasGO.transform, "End Planning",
+            new Vector2(-20, 20), new Color(0.2f, 0.6f, 0.2f), OnEndPlanningClicked);
+        fleeButton = BuildActionButton(canvasGO.transform, "Flee",
+            new Vector2(-190, 20), new Color(0.6f, 0.2f, 0.2f), OnFleeClicked);
     }
 
-    private void BuildEndPlanningButton(Transform parent)
+    private Button BuildActionButton(Transform parent, string text, Vector2 anchoredPosition,
+        Color color, UnityEngine.Events.UnityAction onClick)
     {
-        var buttonGO = new GameObject("EndPlanningButton");
+        var buttonGO = new GameObject($"{text}Button");
         buttonGO.transform.SetParent(parent, false);
 
         var rect = buttonGO.AddComponent<RectTransform>();
         rect.anchorMin = new Vector2(1, 0);
         rect.anchorMax = new Vector2(1, 0);
         rect.pivot = new Vector2(1, 0);
-        rect.anchoredPosition = new Vector2(-20, 20);
+        rect.anchoredPosition = anchoredPosition;
         rect.sizeDelta = new Vector2(160, 40);
 
         var image = buttonGO.AddComponent<Image>();
-        image.color = new Color(0.2f, 0.6f, 0.2f);
+        image.color = color;
 
-        endPlanningButton = buttonGO.AddComponent<Button>();
-        endPlanningButton.targetGraphic = image;
-        endPlanningButton.onClick.AddListener(OnEndPlanningClicked);
+        var button = buttonGO.AddComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(onClick);
 
         var labelGO = new GameObject("Label");
         labelGO.transform.SetParent(buttonGO.transform, false);
@@ -218,6 +229,8 @@ public class PlanningController : MonoBehaviour
         label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         label.alignment = TextAnchor.MiddleCenter;
         label.color = Color.white;
-        label.text = "End Planning";
+        label.text = text;
+
+        return button;
     }
 }

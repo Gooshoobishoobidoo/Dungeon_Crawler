@@ -17,8 +17,8 @@ MonoBehaviour:
   abilityType: 2
   manaCost: 0
   staminaCost: 10
-  cooldown: 0
-  range: 2
+  cooldown: 2
+  range: 5
   damage: 18
   aoeRadius: 0
   vfxPrefab: {fileID: 0}

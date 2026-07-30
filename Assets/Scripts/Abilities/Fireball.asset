@@ -13,12 +13,13 @@ MonoBehaviour:
   m_Name: Fireball
   m_EditorClassIdentifier: Assembly-CSharp::Ability
   abilityName: Fireball
-  description: Hurls a burning projectile that explodes on impact, damaging all characters in the blast radius.
+  description: Hurls a burning projectile that explodes on impact, damaging all characters
+    in the blast radius.
   abilityType: 1
   manaCost: 25
   staminaCost: 0
-  cooldown: 2
-  range: 8
+  cooldown: 5
+  range: 10
   damage: 30
   aoeRadius: 2.5
   vfxPrefab: {fileID: 0}
