@@ -59,14 +59,35 @@ exactly one, with resource regen and the risk of running dry mid-fight. Delibera
 two steps rather than one big rework — see the plan discussion for why the second step is a
 genuinely different execution architecture (a live timeline, not a fixed sequence).
 
-- [ ] **Step 1**: `PlannedAction` holds a queue of actions instead of one; Planning UI lets you
-      add multiple abilities per turn gated by current resources, shows the queued order; still
-      resolved with today's simple sequential execution model (no mid-execution recharge-waiting)
-- [ ] Resource regen: mana/stamina recover some amount each turn (rate/formula TBD, likely a new
-      tunable `CharacterData` field)
-- [ ] **Step 2** (separate follow-up once Step 1's feel is known): simultaneous execution where a
-      character short on resources for their next queued action waits mid-execution until they
-      regen enough, rather than everything resolving in a fixed speed-sorted sequence
+- [x] **Step 1**: `PlannedAction.queue` (`List<QueuedAction>`) replaces the old single
+      ability/item fields; `PlanningController` appends to the queue (validated: an ability can't
+      be queued twice in one turn, items are limited to unqueued copies actually held, both
+      checked against resources left over after everything already queued) instead of overwriting
+      a single selection; `QueueDisplayUI` shows the order with per-entry removal;
+      `CombatManager.ExecuteCharacterAction` resolves the queue in order, stopping early if the
+      character dies mid-turn. Enemy AI still only ever queues one ability (multi-action AI is a
+      separate future upgrade), and there's no live button-graying for "already queued"/"can't
+      afford anymore" yet — rejected with a log warning instead when you try, same pattern the
+      codebase already used for e.g. out-of-range targeting.
+- [x] Playtest fixes on Step 1: every queue-mutating entry point (`TryQueueAbility`/`TryQueueItem`/
+      `RemoveQueuedAction`/`HandleWorldClick`) now checks `CombatManager.currentPhase ==
+      Planning` — the canvas-visibility check alone didn't stop queue edits during Execution,
+      and mutating the same `List` `CombatManager` was actively `foreach`-ing threw; `QueueDisplayUI`
+      now treats a `null` `plannedAction` (true at the start of every new turn) as "0 queued"
+      instead of skipping its rebuild check entirely, so it actually clears instead of showing
+      last turn's stale entries until something else happened to call `Show()` again.
+- [x] **Step 2, moved up**: turned out to be needed immediately rather than a later refinement -
+      ability/item resolution had actually been sequential (one character's whole queue to
+      completion before the next started) since the very first execution pass, which
+      contradicted "everyone acts at once" the moment movement needed to interleave with actions.
+      `ExecutionPhase` now launches every character's queue as its own concurrent coroutine
+      (started the same frame, waited on together) instead of a sequential per-character loop,
+      and `Move` joins `Ability`/`Item` as a third queueable `QueuedActionType` - `PlannedAction`'s
+      old single `moveDestination` field is gone, replaced by explicit queued Move entries (enemy
+      AI included). Speed no longer drives execution order (nothing is ordered anymore) but still
+      drives `NavMeshAgent` speed as it always did.
+- [ ] **Fast-follow**: passive mana/stamina regen over time, plus Rest/Focus actions (choose a
+      duration, live preview of how much they'd restore) — join the same action queue
 
 ## Phase 5 — Party selection & run structure
 

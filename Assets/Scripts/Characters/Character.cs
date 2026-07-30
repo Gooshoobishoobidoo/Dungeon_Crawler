@@ -187,12 +187,37 @@ public class Character : MonoBehaviour
     }
 }
 
+public enum QueuedActionType
+{
+    Move,
+    Ability,
+    Item
+}
+
+// One entry in a turn's action queue - a move, an ability use, or an item use - carrying
+// whatever target info that entry needs, since different queued entries can aim at different
+// things (or nothing, for Move).
+[System.Serializable]
+public class QueuedAction
+{
+    public QueuedActionType type;
+    public Ability ability;
+    public ItemData item;
+    public Vector3 target; // move destination, ground point (AreaOfEffect), or unit position
+    public Character targetCharacter; // UnitTarget abilities only
+    public Vector3 direction; // normalized aim direction - Skillshot abilities only
+
+    public string DisplayName => type switch
+    {
+        QueuedActionType.Move => "Move",
+        QueuedActionType.Ability => ability != null ? ability.abilityName : "?",
+        QueuedActionType.Item => item != null ? item.itemName : "?",
+        _ => "?"
+    };
+}
+
 [System.Serializable]
 public class PlannedAction
 {
-    public Vector3 moveDestination;
-    public Ability ability;
-    public ItemData itemToUse; // mutually exclusive with ability - one action per turn, for now
-    public Vector3 abilityTarget;
-    public Character targetCharacter;
+    public List<QueuedAction> queue = new List<QueuedAction>();
 }

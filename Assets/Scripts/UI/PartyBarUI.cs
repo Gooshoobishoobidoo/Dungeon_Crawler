@@ -2,18 +2,25 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Procedural row of clickable party portraits. Built once at Start from
-// CombatManager.Instance.playerCharacters; Refresh() updates stats/ready state each frame.
+// Procedural row of clickable party portraits. Self-refreshing: CombatManager.playerCharacters
+// gets reassigned to a new list each time BeginEncounter runs (built from DungeonManager.party,
+// not the Inspector-time starting value), so Refresh() rebuilds the portraits whenever that
+// list reference changes instead of only ever building once at Start - otherwise a character
+// added to the roster after the scene loaded would show a stale portrait that never actually
+// participates in the real encounter (accepts clicks/queued actions, but ExecutionPhase never
+// touches them since they're not really in CombatManager's current list).
 public class PartyBarUI : MonoBehaviour
 {
     private class Entry
     {
         public Character character;
+        public GameObject go;
         public Image background;
         public Text statsText;
     }
 
     private readonly List<Entry> entries = new List<Entry>();
+    private List<Character> lastKnownList;
 
     public void Build()
     {
@@ -31,12 +38,6 @@ public class PartyBarUI : MonoBehaviour
         layout.childControlHeight = false;
 
         gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-        List<Character> characters = CombatManager.Instance != null ? CombatManager.Instance.playerCharacters : null;
-        if (characters == null) return;
-
-        foreach (Character c in characters)
-            entries.Add(BuildEntry(c));
     }
 
     private Entry BuildEntry(Character c)
@@ -79,11 +80,18 @@ public class PartyBarUI : MonoBehaviour
         statsText.alignment = TextAnchor.MiddleCenter;
         statsText.color = Color.white;
 
-        return new Entry { character = c, background = background, statsText = statsText };
+        return new Entry { character = c, go = entryGO, background = background, statsText = statsText };
     }
 
     public void Refresh()
     {
+        List<Character> current = CombatManager.Instance != null ? CombatManager.Instance.playerCharacters : null;
+        if (current != lastKnownList)
+        {
+            RebuildEntries(current);
+            lastKnownList = current;
+        }
+
         foreach (Entry e in entries)
         {
             if (e.character == null) continue;
@@ -99,5 +107,16 @@ public class PartyBarUI : MonoBehaviour
                 : isReady ? new Color(0.15f, 0.35f, 0.15f, 0.9f)
                 : new Color(0.1f, 0.1f, 0.1f, 0.85f);
         }
+    }
+
+    private void RebuildEntries(List<Character> characters)
+    {
+        foreach (Entry e in entries) Destroy(e.go);
+        entries.Clear();
+
+        if (characters == null) return;
+
+        foreach (Character c in characters)
+            entries.Add(BuildEntry(c));
     }
 }

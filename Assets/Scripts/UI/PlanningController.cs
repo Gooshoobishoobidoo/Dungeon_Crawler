@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -22,6 +23,7 @@ public class PlanningController : MonoBehaviour
     private PartyBarUI partyBar;
     private AbilityBarUI abilityBar;
     private InventoryBarUI inventoryBar;
+    private QueueDisplayUI queueDisplay;
     private Button endPlanningButton;
     private Button fleeButton;
     private Camera cam;
@@ -69,6 +71,7 @@ public class PlanningController : MonoBehaviour
 
     private void HandleWorldClick()
     {
+        if (!IsPlanning()) return;
         if (Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame) return;
         if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
         if (ActiveCharacter == null || cam == null) return;
@@ -85,21 +88,82 @@ public class PlanningController : MonoBehaviour
         }
         else
         {
-            EnsurePlannedAction(ActiveCharacter).moveDestination = hit.point;
-            Debug.Log($"{ActiveCharacter.data.characterName} will move to {hit.point}.");
+            QueueMove(ActiveCharacter, hit.point);
         }
+    }
+
+    // Clicking the ground repeatedly just updates where you're headed next (same feel as
+    // before the queue existed) - only queuing something else in between produces a second,
+    // deliberate Move entry later in the queue.
+    private void QueueMove(Character c, Vector3 destination)
+    {
+        if (!IsPlanning()) return;
+
+        PlannedAction planned = EnsurePlannedAction(c);
+
+        if (planned.queue.Count > 0 && planned.queue[planned.queue.Count - 1].type == QueuedActionType.Move)
+        {
+            planned.queue[planned.queue.Count - 1].target = destination;
+        }
+        else
+        {
+            planned.queue.Add(new QueuedAction { type = QueuedActionType.Move, target = destination });
+        }
+
+        Debug.Log($"{c.data.characterName} will move to {destination}.");
+    }
+
+    // Where a character will actually be by the time a newly-queued action would resolve -
+    // the destination of the last Move already in their queue, or their current position if
+    // they haven't queued one. Since abilities are always appended at the end, this is exactly
+    // the position range should be checked against (otherwise queuing Move-then-Slash on a
+    // target only in range *after* the move would be incorrectly rejected using where the
+    // character stands right now, before Planning even ends).
+    private Vector3 GetEffectivePosition(Character c)
+    {
+        if (c.plannedAction != null)
+        {
+            for (int i = c.plannedAction.queue.Count - 1; i >= 0; i--)
+            {
+                if (c.plannedAction.queue[i].type == QueuedActionType.Move)
+                    return c.plannedAction.queue[i].target;
+            }
+        }
+
+        return c.transform.position;
     }
 
     private void ResolveAbilityTarget(RaycastHit hit)
     {
-        float distance = Vector3.Distance(ActiveCharacter.transform.position, hit.point);
-        if (distance > pendingAbility.range)
+        Vector3 effectivePosition = GetEffectivePosition(ActiveCharacter);
+
+        // Skillshot's click only ever defines a direction, not an impact location - the beam
+        // always travels exactly `range` units that way regardless of how far you clicked, so
+        // it skips the "is the clicked point within range" rejection entirely.
+        if (pendingAbility.abilityType == AbilityType.Skillshot)
         {
-            Debug.LogWarning($"{pendingAbility.abilityName} target is out of range ({distance:F1} > {pendingAbility.range}).");
+            Vector3 aim = hit.point - effectivePosition;
+            if (aim.sqrMagnitude < 0.25f)
+            {
+                Debug.LogWarning($"{pendingAbility.abilityName} needs a clear direction - click further away.");
+                return;
+            }
+
+            TryQueueAbility(ActiveCharacter, pendingAbility, effectivePosition, null, aim.normalized);
+            mode = TargetMode.AwaitingMove;
+            pendingAbility = null;
             return;
         }
 
-        PlannedAction planned = EnsurePlannedAction(ActiveCharacter);
+        float distance = Vector3.Distance(effectivePosition, hit.point);
+        if (distance > pendingAbility.range)
+        {
+            Debug.LogWarning($"{pendingAbility.abilityName} target is out of range from where {ActiveCharacter.data.characterName} will be ({distance:F1} > {pendingAbility.range}).");
+            return;
+        }
+
+        Vector3 target;
+        Character targetCharacter = null;
 
         if (pendingAbility.abilityType == AbilityType.UnitTarget)
         {
@@ -122,30 +186,114 @@ public class PlanningController : MonoBehaviour
                 return;
             }
 
-            planned.targetCharacter = hitCharacter;
-            planned.abilityTarget = hitCharacter.transform.position;
+            targetCharacter = hitCharacter;
+            target = hitCharacter.transform.position;
         }
         else
         {
-            planned.abilityTarget = hit.point;
-            planned.targetCharacter = null;
+            target = hit.point;
         }
 
-        planned.ability = pendingAbility;
-        planned.itemToUse = null;
-        Debug.Log($"{ActiveCharacter.data.characterName} will use {pendingAbility.abilityName}.");
-
+        // Whether this succeeds or gets rejected (already queued / can't afford), a different
+        // target click wouldn't change that outcome, so either way we're done targeting.
+        TryQueueAbility(ActiveCharacter, pendingAbility, target, targetCharacter);
         mode = TargetMode.AwaitingMove;
         pendingAbility = null;
     }
 
+    // Combat stays in Combat mode for its whole duration (Planning + Execution + Resolution),
+    // so the canvas-visibility check in Update() isn't enough to stop queue edits mid-execution -
+    // CombatManager is actively foreach-ing this same queue then, and mutating a List while it's
+    // being enumerated throws. Every place that mutates plannedAction/queue needs this guard,
+    // not just Update()'s world-click handling, since UI button clicks fire independently of it.
+    private bool IsPlanning()
+    {
+        return CombatManager.Instance == null || CombatManager.Instance.currentPhase == CombatPhase.Planning;
+    }
+
+    // Rejects (log warning, no change) if this ability is already queued this turn, or if the
+    // resources left over after everything already queued can't cover it. Cooldown itself
+    // doesn't tick during Planning, so "already queued" is what stops double-queuing around that.
+    private bool TryQueueAbility(Character c, Ability ability, Vector3 target, Character targetCharacter, Vector3 direction = default)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return false;
+        }
+
+        PlannedAction planned = EnsurePlannedAction(c);
+
+        if (planned.queue.Exists(q => q.ability == ability))
+        {
+            Debug.LogWarning($"{ability.abilityName} is already queued this turn.");
+            return false;
+        }
+
+        int queuedMana = 0;
+        int queuedStamina = 0;
+        foreach (QueuedAction q in planned.queue)
+        {
+            if (q.ability == null) continue;
+            queuedMana += q.ability.manaCost;
+            queuedStamina += q.ability.staminaCost;
+        }
+
+        if (c.currentMana - queuedMana < ability.manaCost || c.currentStamina - queuedStamina < ability.staminaCost)
+        {
+            Debug.LogWarning($"Not enough resources left this turn for {ability.abilityName}.");
+            return false;
+        }
+
+        planned.queue.Add(new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target, targetCharacter = targetCharacter, direction = direction });
+        Debug.Log($"{c.data.characterName} will use {ability.abilityName}.");
+        return true;
+    }
+
+    // Rejects if there's no unqueued copy left - "available" is the inventory with already-
+    // queued item references removed one-for-one, so duplicate ItemData entries (how stacking
+    // already works) naturally support queuing e.g. 2 held potions.
+    private bool TryQueueItem(Character c, ItemData item)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return false;
+        }
+
+        PlannedAction planned = EnsurePlannedAction(c);
+
+        List<ItemData> available = new List<ItemData>(c.inventory);
+        foreach (QueuedAction q in planned.queue)
+        {
+            if (q.item != null) available.Remove(q.item);
+        }
+
+        if (!available.Contains(item))
+        {
+            Debug.LogWarning($"No more {item.itemName} available to queue this turn.");
+            return false;
+        }
+
+        planned.queue.Add(new QueuedAction { type = QueuedActionType.Item, item = item });
+        Debug.Log($"{c.data.characterName} will use {item.itemName}.");
+        return true;
+    }
+
+    public void RemoveQueuedAction(Character c, QueuedAction queuedAction)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return;
+        }
+
+        c.plannedAction?.queue.Remove(queuedAction);
+    }
+
     private PlannedAction EnsurePlannedAction(Character c)
     {
-        // A fresh PlannedAction's moveDestination defaults to Vector3.zero (world origin) -
-        // targeting an ability without first clicking a move would otherwise walk the
-        // character to (0,0,0). Default to holding position instead.
-        if (c.plannedAction == null)
-            c.plannedAction = new PlannedAction { moveDestination = c.transform.position };
+        if (c.plannedAction == null) c.plannedAction = new PlannedAction();
         return c.plannedAction;
     }
 
@@ -156,6 +304,7 @@ public class PlanningController : MonoBehaviour
         pendingAbility = null;
         abilityBar?.Show(c);
         inventoryBar?.Show(c, OnUseItemSelected);
+        queueDisplay?.Show(c);
     }
 
     public void SelectAbility(Ability ability)
@@ -164,12 +313,7 @@ public class PlanningController : MonoBehaviour
 
         if (ability.abilityType == AbilityType.Self)
         {
-            PlannedAction planned = EnsurePlannedAction(ActiveCharacter);
-            planned.ability = ability;
-            planned.itemToUse = null;
-            planned.abilityTarget = ActiveCharacter.transform.position;
-            planned.targetCharacter = null;
-            Debug.Log($"{ActiveCharacter.data.characterName} will use {ability.abilityName} on self.");
+            TryQueueAbility(ActiveCharacter, ability, GetEffectivePosition(ActiveCharacter), null);
             return;
         }
 
@@ -178,16 +322,10 @@ public class PlanningController : MonoBehaviour
         Debug.Log($"Select a target for {ability.abilityName}.");
     }
 
-    // No targeting step - items are self-only for now. Mutually exclusive with an ability,
-    // same one-action-per-turn constraint everything else in Planning follows.
+    // No targeting step - items are self-only for now.
     private void OnUseItemSelected(Character character, ItemData item)
     {
-        PlannedAction planned = EnsurePlannedAction(character);
-        planned.itemToUse = item;
-        planned.ability = null;
-        mode = TargetMode.AwaitingMove;
-        pendingAbility = null;
-        Debug.Log($"{character.data.characterName} will use {item.itemName}.");
+        TryQueueItem(character, item);
     }
 
     private void OnEndPlanningClicked()
@@ -230,6 +368,11 @@ public class PlanningController : MonoBehaviour
         inventoryBarGO.transform.SetParent(canvasGO.transform, false);
         inventoryBar = inventoryBarGO.AddComponent<InventoryBarUI>();
         inventoryBar.Build();
+
+        var queueDisplayGO = new GameObject("QueueDisplay");
+        queueDisplayGO.transform.SetParent(canvasGO.transform, false);
+        queueDisplay = queueDisplayGO.AddComponent<QueueDisplayUI>();
+        queueDisplay.Build();
 
         Vector2 bottomRight = new Vector2(1, 0);
         Vector2 buttonSize = new Vector2(160, 40);

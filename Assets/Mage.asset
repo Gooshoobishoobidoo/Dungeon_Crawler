@@ -24,5 +24,6 @@ MonoBehaviour:
   critChance: 0.15
   abilities:
   - {fileID: 11400000, guid: a1ebd18622bbddcf03595ddf8554410a, type: 2}
+  - {fileID: 11400000, guid: 19260dffce05e3f4aab233e35fadfa5b, type: 2}
   characterPrefab: {fileID: 0}
   portrait: {fileID: 0}

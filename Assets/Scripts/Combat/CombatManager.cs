@@ -196,13 +196,15 @@ public class CombatManager : MonoBehaviour
 
     private PlannedAction BuildAttackAction(Character c, Ability ability, Character target)
     {
-        return new PlannedAction
+        var queuedAction = new QueuedAction
         {
-            moveDestination = c.transform.position,
+            type = QueuedActionType.Ability,
             ability = ability,
-            abilityTarget = target.transform.position,
+            target = target.transform.position,
             targetCharacter = ability.abilityType == AbilityType.UnitTarget ? target : null
         };
+
+        return new PlannedAction { queue = new List<QueuedAction> { queuedAction } };
     }
 
     // Moves toward target, stopping ~90% of the way to keepRange (0 = walk all the way there).
@@ -213,13 +215,8 @@ public class CombatManager : MonoBehaviour
         float travel = Mathf.Max(0, distance - keepRange * 0.9f);
         Vector3 destination = c.transform.position + toTarget.normalized * travel;
 
-        return new PlannedAction
-        {
-            moveDestination = destination,
-            ability = null,
-            abilityTarget = Vector3.zero,
-            targetCharacter = null
-        };
+        var queuedAction = new QueuedAction { type = QueuedActionType.Move, target = destination };
+        return new PlannedAction { queue = new List<QueuedAction> { queuedAction } };
     }
 
     // -------------------------
@@ -239,81 +236,88 @@ public class CombatManager : MonoBehaviour
         currentPhase = CombatPhase.Execution;
         Debug.Log("--- Execution Phase ---");
 
-        List<Character> allCharacters = AllCharacters();
-        allCharacters.Sort((a, b) => b.data.speed.CompareTo(a.data.speed));
-
-        // Start all characters moving simultaneously
-        foreach (Character c in allCharacters)
+        // Every character's queue runs as its own coroutine, all launched this same frame, so
+        // everyone genuinely acts at once instead of taking turns - each character's own queue
+        // still resolves strictly in the order it was queued, but different characters' queues
+        // run concurrently rather than waiting for one another.
+        List<Coroutine> running = new List<Coroutine>();
+        foreach (Character c in AllCharacters())
         {
             if (c.isDead || c.plannedAction == null) continue;
-            c.MoveTo(c.plannedAction.moveDestination);
+            running.Add(StartCoroutine(ExecuteCharacterAction(c)));
         }
 
-        // Wait until all characters have finished moving. Agents converging on the same or
-        // overlapping destinations can jostle each other indefinitely without ever settling
-        // inside their stopping distance, so this is time-boxed rather than unconditional.
-        const float moveTimeoutSeconds = 8f;
-        float moveTimer = 0f;
-        bool allDoneMoving = false;
-        while (!allDoneMoving)
-        {
-            allDoneMoving = true;
-            foreach (Character c in allCharacters)
-            {
-                if (!c.isDead && c.isMoving)
-                {
-                    allDoneMoving = false;
-                    break;
-                }
-            }
+        foreach (Coroutine r in running) yield return r;
 
-            if (!allDoneMoving)
-            {
-                moveTimer += Time.deltaTime;
-                if (moveTimer >= moveTimeoutSeconds)
-                {
-                    Debug.LogWarning("Movement timed out - forcing remaining characters to stop.");
-                    foreach (Character c in allCharacters)
-                    {
-                        if (!c.isDead && c.isMoving) c.StopMoving();
-                    }
-                    break;
-                }
-            }
-
-            yield return null;
-        }
-
-        Debug.Log("All characters finished moving.");
-
-        foreach (Character c in allCharacters)
-        {
-            if (c.isDead || c.plannedAction == null) continue;
-            yield return ExecuteCharacterAction(c);
-        }
-
+        Debug.Log("All characters finished their turn.");
         StartResolutionPhase();
     }
 
+    // Resolves the character's whole queued action list in order, stopping early if they die
+    // partway through (e.g. from another character's concurrently-resolving AoE) rather than
+    // continuing to resolve a dead character's remaining actions.
     private IEnumerator ExecuteCharacterAction(Character c)
     {
         if (c.plannedAction == null) yield break;
 
-        if (c.plannedAction.itemToUse != null)
+        if (c.plannedAction.queue.Count == 0)
         {
-            yield return ExecuteItemUse(c, c.plannedAction.itemToUse);
+            Debug.Log($"{c.data.characterName} does nothing this turn.");
             c.hasActedThisTurn = true;
             yield break;
         }
 
-        Ability ability = c.plannedAction.ability;
-        if (ability == null)
+        foreach (QueuedAction queuedAction in c.plannedAction.queue)
         {
-            Debug.Log($"{c.data.characterName} uses no ability.");
-            c.hasActedThisTurn = true;
-            yield return new WaitForSeconds(0.5f);
-            yield break;
+            if (c.isDead) break;
+
+            switch (queuedAction.type)
+            {
+                case QueuedActionType.Move:
+                    yield return ExecuteMove(c, queuedAction.target);
+                    break;
+
+                case QueuedActionType.Item:
+                    yield return ExecuteItemUse(c, queuedAction.item);
+                    break;
+
+                case QueuedActionType.Ability:
+                    yield return ExecuteAbilityUse(c, queuedAction);
+                    break;
+            }
         }
+
+        c.hasActedThisTurn = true;
+    }
+
+    // Per-character movement wait, replacing the old party-wide one now that movement is just
+    // another queued entry. Same 8-second timeout safeguard as before - agents converging on
+    // overlapping destinations can still jostle indefinitely without ever settling into their
+    // stopping distance - just scoped to one character instead of blocking everyone.
+    private IEnumerator ExecuteMove(Character c, Vector3 destination)
+    {
+        c.MoveTo(destination);
+
+        const float timeoutSeconds = 8f;
+        float timer = 0f;
+
+        while (c.isMoving && !c.isDead)
+        {
+            timer += Time.deltaTime;
+            if (timer >= timeoutSeconds)
+            {
+                Debug.LogWarning($"{c.data.characterName}'s movement timed out - stopping.");
+                c.StopMoving();
+                break;
+            }
+
+            yield return null;
+        }
+    }
+
+    private IEnumerator ExecuteAbilityUse(Character c, QueuedAction queuedAction)
+    {
+        Ability ability = queuedAction.ability;
 
         c.SpendMana(ability.manaCost);
         c.SpendStamina(ability.staminaCost);
@@ -322,12 +326,15 @@ public class CombatManager : MonoBehaviour
         switch (ability.abilityType)
         {
             case AbilityType.UnitTarget:
-                ResolveUnitTarget(c, ability);
+                ResolveUnitTarget(c, ability, queuedAction.targetCharacter);
                 break;
 
             case AbilityType.AreaOfEffect:
+                ResolveAreaTarget(c, ability, queuedAction.target);
+                break;
+
             case AbilityType.Skillshot:
-                ResolveAreaTarget(c, ability);
+                ResolveSkillshot(c, ability, queuedAction.direction);
                 break;
 
             case AbilityType.Self:
@@ -336,12 +343,11 @@ public class CombatManager : MonoBehaviour
                 break;
         }
 
-        c.hasActedThisTurn = true;
         yield return new WaitForSeconds(0.5f);
     }
 
-    // Item use delays resolution by its own useTime instead of the flat 0.5s stagger every
-    // other action gets - the same idea (give the action a moment to read/land), just item-specific.
+    // Item use delays resolution by its own useTime instead of the flat 0.5s stagger abilities
+    // get - the same idea (give the action a moment to read/land), just item-specific.
     private IEnumerator ExecuteItemUse(Character c, ItemData item)
     {
         Debug.Log($"{c.data.characterName} uses {item.itemName}.");
@@ -350,9 +356,8 @@ public class CombatManager : MonoBehaviour
         if (!c.isDead) item.ApplyTo(c);
     }
 
-    private void ResolveUnitTarget(Character c, Ability ability)
+    private void ResolveUnitTarget(Character c, Ability ability, Character target)
     {
-        Character target = c.plannedAction.targetCharacter;
         if (target == null || target.isDead ||
             Vector3.Distance(c.transform.position, target.transform.position) > ability.range)
         {
@@ -364,9 +369,8 @@ public class CombatManager : MonoBehaviour
         target.TakeDamage(ability.damage);
     }
 
-    private void ResolveAreaTarget(Character c, Ability ability)
+    private void ResolveAreaTarget(Character c, Ability ability, Vector3 point)
     {
-        Vector3 point = c.plannedAction.abilityTarget;
         if (Vector3.Distance(c.transform.position, point) > ability.range)
         {
             Debug.Log($"{c.data.characterName}'s {ability.abilityName} fizzled - target point out of range.");
@@ -378,6 +382,36 @@ public class CombatManager : MonoBehaviour
         {
             if (other.isDead) continue;
             if (Vector3.Distance(other.transform.position, point) <= ability.aoeRadius)
+                other.TakeDamage(ability.damage);
+        }
+    }
+
+    // A beam from the caster's current (live) position out to ability.range, aoeRadius wide.
+    // Unlike ResolveAreaTarget, the caster is excluded - a beam leaving you shouldn't hit you
+    // at the point you fired it, whereas standing in your own AoE blast plausibly should.
+    private void ResolveSkillshot(Character c, Ability ability, Vector3 direction)
+    {
+        if (direction.sqrMagnitude < 0.0001f)
+        {
+            Debug.Log($"{c.data.characterName}'s {ability.abilityName} fizzled - no direction.");
+            return;
+        }
+
+        direction.Normalize();
+        Vector3 origin = c.transform.position;
+
+        Debug.Log($"{c.data.characterName} uses {ability.abilityName} toward {direction}.");
+
+        foreach (Character other in AllCharacters())
+        {
+            if (other == c || other.isDead) continue;
+
+            Vector3 toOther = other.transform.position - origin;
+            float projection = Vector3.Dot(toOther, direction);
+            if (projection < 0 || projection > ability.range) continue;
+
+            Vector3 closestPointOnBeam = origin + direction * projection;
+            if (Vector3.Distance(other.transform.position, closestPointOnBeam) <= ability.aoeRadius)
                 other.TakeDamage(ability.damage);
         }
     }
