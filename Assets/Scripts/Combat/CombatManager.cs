@@ -181,12 +181,13 @@ public class CombatManager : MonoBehaviour
     // Self abilities are excluded - there's no self-buff/heal AI logic yet.
     private Ability ChooseBestAbility(Character c, Character target)
     {
-        if (c.data.abilities == null || c.currentCooldown > 0) return null;
+        if (c.data.abilities == null) return null;
 
         Ability best = null;
         foreach (Ability ability in c.data.abilities)
         {
             if (ability == null || ability.abilityType == AbilityType.Self) continue;
+            if (c.IsAbilityOnCooldown(ability)) continue;
             if (c.currentMana < ability.manaCost || c.currentStamina < ability.staminaCost) continue;
             if (best == null || ability.damage > best.damage) best = ability;
         }
@@ -284,6 +285,18 @@ public class CombatManager : MonoBehaviour
                 case QueuedActionType.Ability:
                     yield return ExecuteAbilityUse(c, queuedAction);
                     break;
+
+                case QueuedActionType.Rest:
+                    yield return ExecuteRegenChannel(c, queuedAction.duration, c.data.restRegenPerSecond, c.RestoreStamina);
+                    break;
+
+                case QueuedActionType.Focus:
+                    yield return ExecuteRegenChannel(c, queuedAction.duration, c.data.focusRegenPerSecond, c.RestoreMana);
+                    break;
+
+                case QueuedActionType.Pass:
+                    Debug.Log($"{c.data.characterName} passes the turn.");
+                    break;
             }
         }
 
@@ -296,6 +309,11 @@ public class CombatManager : MonoBehaviour
     // stopping distance - just scoped to one character instead of blocking everyone.
     private IEnumerator ExecuteMove(Character c, Vector3 destination)
     {
+        // Charged once up front for the intended distance, not gradually like Rest/Focus - Move
+        // has no partial-credit/interrupt concept to preserve if something goes wrong mid-walk.
+        float distance = Vector3.Distance(c.transform.position, destination);
+        c.SpendStamina(Mathf.RoundToInt(distance * c.data.moveStaminaCostPerUnit));
+
         c.MoveTo(destination);
 
         const float timeoutSeconds = 8f;
@@ -321,7 +339,7 @@ public class CombatManager : MonoBehaviour
 
         c.SpendMana(ability.manaCost);
         c.SpendStamina(ability.staminaCost);
-        c.currentCooldown = ability.cooldown;
+        c.SetAbilityCooldown(ability, ability.cooldown);
 
         switch (ability.abilityType)
         {
@@ -354,6 +372,39 @@ public class CombatManager : MonoBehaviour
         c.inventory.Remove(item);
         yield return new WaitForSeconds(item.useTime);
         if (!c.isDead) item.ApplyTo(c);
+    }
+
+    // Shared by Rest (stamina) and Focus (mana) - restores gradually over `duration` rather than
+    // all at once at the end, so getting hit partway through still banks whatever had already
+    // accrued instead of losing it all. Interrupted by death or by taking any damage this frame
+    // (compared against health at the start of the frame, since another character's concurrently-
+    // resolving action can land damage mid-channel); ends cleanly if neither happens by `duration`.
+    private IEnumerator ExecuteRegenChannel(Character c, float duration, float ratePerSecond, System.Action<int> restore)
+    {
+        float elapsed = 0f;
+        float accumulator = 0f;
+
+        while (elapsed < duration && !c.isDead)
+        {
+            int healthBeforeFrame = c.currentHealth;
+            yield return null;
+
+            if (c.isDead) yield break;
+            if (c.currentHealth < healthBeforeFrame)
+            {
+                Debug.Log($"{c.data.characterName}'s channel was interrupted by taking damage.");
+                yield break;
+            }
+
+            elapsed += Time.deltaTime;
+            accumulator += ratePerSecond * Time.deltaTime;
+
+            while (accumulator >= 1f)
+            {
+                restore(1);
+                accumulator -= 1f;
+            }
+        }
     }
 
     private void ResolveUnitTarget(Character c, Ability ability, Character target)

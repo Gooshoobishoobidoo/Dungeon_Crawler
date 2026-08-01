@@ -22,6 +22,10 @@ MonoBehaviour:
   attackPower: 22
   defense: 3
   critChance: 0.15
+  manaRegenPerSecond: 2
+  staminaRegenPerSecond: 1
+  focusRegenPerSecond: 4
+  restRegenPerSecond: 2
   abilities:
   - {fileID: 11400000, guid: a1ebd18622bbddcf03595ddf8554410a, type: 2}
   - {fileID: 11400000, guid: 19260dffce05e3f4aab233e35fadfa5b, type: 2}

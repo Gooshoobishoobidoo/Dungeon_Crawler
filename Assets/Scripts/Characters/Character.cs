@@ -12,7 +12,6 @@ public class Character : MonoBehaviour
     public int currentHealth;
     public int currentMana;
     public int currentStamina;
-    public float currentCooldown;
 
     [Header("Inventory")]
     public List<ItemData> inventory = new List<ItemData>();
@@ -31,6 +30,16 @@ public class Character : MonoBehaviour
     public PlannedAction plannedAction;
 
     private NavMeshAgent agent;
+
+    // Per-ability, not per-character - each ability ticks down independently using its own
+    // cooldown value, rather than one shared value that used to make every ability on a
+    // character reflect whichever one was used last.
+    private readonly Dictionary<Ability, float> abilityCooldowns = new Dictionary<Ability, float>();
+
+    // Fractional regen banked between frames - mana/stamina are ints but regen rates are floats,
+    // so a whole point is only actually granted once enough partial frames add up to one.
+    private float manaRegenAccumulator;
+    private float staminaRegenAccumulator;
 
     private void Awake()
     {
@@ -73,9 +82,36 @@ public class Character : MonoBehaviour
         bool exploring = DungeonManager.Instance != null && DungeonManager.Instance.currentMode == GameMode.Exploration;
         bool executingTurn = CombatManager.Instance != null && CombatManager.Instance.currentPhase == CombatPhase.Execution;
 
-        if (currentCooldown > 0 && (exploring || executingTurn))
+        if (exploring || executingTurn)
         {
-            currentCooldown = Mathf.Max(0, currentCooldown - Time.deltaTime);
+            // Copy the keys first - ticking an entry down doesn't remove it, but this mirrors
+            // the same "don't mutate a collection you're iterating" care taken elsewhere in this
+            // codebase (see PlanningController's phase-gating around plannedAction.queue).
+            List<Ability> onCooldown = new List<Ability>(abilityCooldowns.Keys);
+            foreach (Ability ability in onCooldown)
+            {
+                if (abilityCooldowns[ability] > 0)
+                    abilityCooldowns[ability] = Mathf.Max(0, abilityCooldowns[ability] - Time.deltaTime);
+            }
+        }
+
+        // Passive regen ticks under the exact same condition as cooldowns above - real gameplay
+        // time passing, not the player thinking during Planning.
+        if (!isDead && data != null && (exploring || executingTurn))
+        {
+            manaRegenAccumulator += data.manaRegenPerSecond * Time.deltaTime;
+            while (manaRegenAccumulator >= 1f)
+            {
+                RestoreMana(1);
+                manaRegenAccumulator -= 1f;
+            }
+
+            staminaRegenAccumulator += data.staminaRegenPerSecond * Time.deltaTime;
+            while (staminaRegenAccumulator >= 1f)
+            {
+                RestoreStamina(1);
+                staminaRegenAccumulator -= 1f;
+            }
         }
     }
 
@@ -90,7 +126,7 @@ public class Character : MonoBehaviour
         currentHealth = data.maxHealth;
         currentMana = data.maxMana;
         currentStamina = data.maxStamina;
-        currentCooldown = 0f;
+        abilityCooldowns.Clear();
         isDead = false;
         hasActedThisTurn = false;
 
@@ -150,6 +186,21 @@ public class Character : MonoBehaviour
         currentHealth = Mathf.Min(data.maxHealth, currentHealth + amount);
     }
 
+    public float GetAbilityCooldown(Ability ability)
+    {
+        return abilityCooldowns.TryGetValue(ability, out float remaining) ? remaining : 0f;
+    }
+
+    public bool IsAbilityOnCooldown(Ability ability)
+    {
+        return GetAbilityCooldown(ability) > 0f;
+    }
+
+    public void SetAbilityCooldown(Ability ability, float seconds)
+    {
+        abilityCooldowns[ability] = seconds;
+    }
+
     // Used by rest points between dungeon areas. Doesn't revive the dead - callers are
     // expected to only invoke this on living party members, same as everywhere else in the
     // codebase that operates on the whole party.
@@ -158,7 +209,7 @@ public class Character : MonoBehaviour
         currentHealth = data.maxHealth;
         currentMana = data.maxMana;
         currentStamina = data.maxStamina;
-        currentCooldown = 0f;
+        abilityCooldowns.Clear();
     }
 
     private void Die()
@@ -191,7 +242,10 @@ public enum QueuedActionType
 {
     Move,
     Ability,
-    Item
+    Item,
+    Rest,
+    Focus,
+    Pass
 }
 
 // One entry in a turn's action queue - a move, an ability use, or an item use - carrying
@@ -206,12 +260,16 @@ public class QueuedAction
     public Vector3 target; // move destination, ground point (AreaOfEffect), or unit position
     public Character targetCharacter; // UnitTarget abilities only
     public Vector3 direction; // normalized aim direction - Skillshot abilities only
+    public float duration; // channel length - Rest/Focus only
 
     public string DisplayName => type switch
     {
         QueuedActionType.Move => "Move",
         QueuedActionType.Ability => ability != null ? ability.abilityName : "?",
         QueuedActionType.Item => item != null ? item.itemName : "?",
+        QueuedActionType.Rest => $"Rest ({duration:F1}s)",
+        QueuedActionType.Focus => $"Focus ({duration:F1}s)",
+        QueuedActionType.Pass => "Pass",
         _ => "?"
     };
 }

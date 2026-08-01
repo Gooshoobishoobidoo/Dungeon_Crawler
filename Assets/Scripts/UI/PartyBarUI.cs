@@ -22,6 +22,14 @@ public class PartyBarUI : MonoBehaviour
     private readonly List<Entry> entries = new List<Entry>();
     private List<Character> lastKnownList;
 
+    // Which roster to show and what a portrait click does differ between the two controllers
+    // that build this: PlanningController wants CombatManager.playerCharacters and to select an
+    // active character for the ability bar, ExplorationController wants DungeonManager.party
+    // (including the dead - there's no "living subset" concept outside combat) and to open the
+    // clicked character's inventory instead.
+    public System.Func<List<Character>> getCharacters;
+    public System.Action<Character> onPortraitClicked;
+
     public void Build()
     {
         var rect = gameObject.AddComponent<RectTransform>();
@@ -51,7 +59,7 @@ public class PartyBarUI : MonoBehaviour
 
         var button = entryGO.AddComponent<Button>();
         button.targetGraphic = background;
-        button.onClick.AddListener(() => PlanningController.Instance?.SelectCharacter(c));
+        button.onClick.AddListener(() => onPortraitClicked?.Invoke(c));
 
         var nameGO = new GameObject("Name");
         nameGO.transform.SetParent(entryGO.transform, false);
@@ -85,12 +93,17 @@ public class PartyBarUI : MonoBehaviour
 
     public void Refresh()
     {
-        List<Character> current = CombatManager.Instance != null ? CombatManager.Instance.playerCharacters : null;
+        List<Character> current = getCharacters?.Invoke();
         if (current != lastKnownList)
         {
             RebuildEntries(current);
             lastKnownList = current;
         }
+
+        // "Active character"/"ready this turn" are Planning-phase concepts only - outside combat
+        // (or for the Exploration instance of this same class) every portrait just gets the
+        // plain default background instead of always reflecting stale/meaningless combat state.
+        bool inCombat = DungeonManager.Instance == null || DungeonManager.Instance.currentMode == GameMode.Combat;
 
         foreach (Entry e in entries)
         {
@@ -100,8 +113,8 @@ public class PartyBarUI : MonoBehaviour
                                 $"MP {e.character.currentMana}/{e.character.data.maxMana}  " +
                                 $"SP {e.character.currentStamina}/{e.character.data.maxStamina}";
 
-            bool isActive = PlanningController.Instance != null && PlanningController.Instance.ActiveCharacter == e.character;
-            bool isReady = e.character.plannedAction != null;
+            bool isActive = inCombat && PlanningController.Instance != null && PlanningController.Instance.ActiveCharacter == e.character;
+            bool isReady = inCombat && e.character.plannedAction != null;
 
             e.background.color = isActive ? new Color(0.25f, 0.35f, 0.55f, 0.9f)
                 : isReady ? new Color(0.15f, 0.35f, 0.15f, 0.9f)

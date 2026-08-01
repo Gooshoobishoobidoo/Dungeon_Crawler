@@ -15,6 +15,7 @@ public class ExplorationController : MonoBehaviour
     private ItemPickup pendingPickup;
     private GameObject canvasGO;
     private InventoryBarUI inventoryBar;
+    private PartyBarUI partyBar;
 
     private void Start()
     {
@@ -31,6 +32,7 @@ public class ExplorationController : MonoBehaviour
         if (canvasGO != null) canvasGO.SetActive(exploring);
         if (!exploring) return;
 
+        partyBar?.Refresh();
         CheckPendingPickup();
         HandleWorldClick();
     }
@@ -122,5 +124,12 @@ public class ExplorationController : MonoBehaviour
         inventoryBarGO.transform.SetParent(canvasGO.transform, false);
         inventoryBar = inventoryBarGO.AddComponent<InventoryBarUI>();
         inventoryBar.Build();
+
+        var partyBarGO = new GameObject("PartyBar");
+        partyBarGO.transform.SetParent(canvasGO.transform, false);
+        partyBar = partyBarGO.AddComponent<PartyBarUI>();
+        partyBar.Build();
+        partyBar.getCharacters = () => DungeonManager.Instance?.party;
+        partyBar.onPortraitClicked = c => inventoryBar?.Show(c, OnUseItemSelected);
     }
 }

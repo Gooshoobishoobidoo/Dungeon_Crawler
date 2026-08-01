@@ -22,6 +22,10 @@ MonoBehaviour:
   attackPower: 10
   defense: 2
   critChance: 0.2
+  manaRegenPerSecond: 0
+  staminaRegenPerSecond: 2
+  focusRegenPerSecond: 0
+  restRegenPerSecond: 3
   abilities:
   - {fileID: 11400000, guid: 7b0402d9a99586546af6e3a2a1b8f58b, type: 2}
   characterPrefab: {fileID: 0}

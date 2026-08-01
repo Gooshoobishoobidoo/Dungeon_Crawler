@@ -86,8 +86,24 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       old single `moveDestination` field is gone, replaced by explicit queued Move entries (enemy
       AI included). Speed no longer drives execution order (nothing is ordered anymore) but still
       drives `NavMeshAgent` speed as it always did.
-- [ ] **Fast-follow**: passive mana/stamina regen over time, plus Rest/Focus actions (choose a
-      duration, live preview of how much they'd restore) — join the same action queue
+- [x] **Fast-follow**: passive mana/stamina regen over time (`CharacterData.manaRegenPerSecond`/
+      `staminaRegenPerSecond`, ticking under the same real-time gating cooldowns already use),
+      plus two separate queueable actions — Rest (stamina) and Focus (mana) — picked with a +/-
+      duration stepper showing a live "will restore ~X" preview. Restoration lands gradually over
+      the channel (`CombatManager.ExecuteRegenChannel`) rather than all at the end, so taking
+      damage partway through banks whatever had already accrued instead of losing it; only damage
+      interrupts a channel, not other events. Enemies never queue either - player-only for now,
+      same gap as the rest of enemy AI only ever queuing one action.
+- [x] **Playtest round 2 fixes**: ability cooldowns are now tracked per-`Ability`
+      (`Character.abilityCooldowns`) instead of one shared value per character - using one ability
+      no longer put every other ability on the same cooldown. Rest/Focus moved out of their own
+      panel into the ability bar itself (`AbilityBarUI`): pressing either collapses the row into
+      just the duration stepper, Confirm queues and collapses it back. A new **Pass** pseudo-action
+      (`QueuedActionType.Pass`, "Do Nothing" button) explicitly marks a character ready with zero
+      actions - mutually exclusive with queuing anything else this turn. Combat's queued Move now
+      spends stamina proportional to distance travelled (`CharacterData.moveStaminaCostPerUnit`).
+      Party portraits/stats (`PartyBarUI`) are now shared between combat and Exploration instead
+      of combat-only, so resources are visible between fights too.
 
 ## Phase 5 — Party selection & run structure
 
@@ -99,3 +115,14 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
 - [ ] Smarter detection (vision cones / line-of-sight instead of a plain radius)
 - [ ] Real formation-based group movement (today the whole party converges on one clicked point)
 - [ ] Risk/skill on fleeing (distance checks, opportunity attacks) instead of an unconditional button
+- [ ] Smarter enemy AI - multi-action turns, target prioritization beyond nearest, resource-aware
+      ability choice (currently just "best affordable, non-cooldown ability"). `Goblin` has been
+      given passive stamina regen as a stopgap so it doesn't run dry mid-fight in the meantime.
+
+## Tech debt / backlog
+
+- [ ] Shared UI helper for the "labeled box with a Text child" pattern every procedural UI class
+      (`AbilityBarUI`, `InventoryBarUI`, `QueueDisplayUI`, `PartyBarUI`) currently hand-rolls - not
+      urgent at 3-4 panels, worth doing if another one shows up.
+- [ ] `QueueDisplayUI`'s single horizontal row will get unwieldy once a character queues 4-5+
+      actions in a turn - consider a scroll view or wrap once that's actually happening in play.

@@ -99,6 +99,12 @@ public class PlanningController : MonoBehaviour
     {
         if (!IsPlanning()) return;
 
+        if (HasPassQueued(c))
+        {
+            Debug.LogWarning($"{c.data.characterName} is passing this turn - remove Pass before queuing a move.");
+            return;
+        }
+
         PlannedAction planned = EnsurePlannedAction(c);
 
         if (planned.queue.Count > 0 && planned.queue[planned.queue.Count - 1].type == QueuedActionType.Move)
@@ -222,6 +228,12 @@ public class PlanningController : MonoBehaviour
             return false;
         }
 
+        if (HasPassQueued(c))
+        {
+            Debug.LogWarning($"{c.data.characterName} is passing this turn - remove Pass before queuing anything else.");
+            return false;
+        }
+
         PlannedAction planned = EnsurePlannedAction(c);
 
         if (planned.queue.Exists(q => q.ability == ability))
@@ -261,6 +273,12 @@ public class PlanningController : MonoBehaviour
             return false;
         }
 
+        if (HasPassQueued(c))
+        {
+            Debug.LogWarning($"{c.data.characterName} is passing this turn - remove Pass before queuing anything else.");
+            return false;
+        }
+
         PlannedAction planned = EnsurePlannedAction(c);
 
         List<ItemData> available = new List<ItemData>(c.inventory);
@@ -278,6 +296,74 @@ public class PlanningController : MonoBehaviour
         planned.queue.Add(new QueuedAction { type = QueuedActionType.Item, item = item });
         Debug.Log($"{c.data.characterName} will use {item.itemName}.");
         return true;
+    }
+
+    // Rest/Focus cost nothing to queue (no mana/stamina/cooldown to check against) - just the
+    // phase guard every other queue-mutating entry point uses.
+    public bool TryQueueRest(Character c, float duration)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return false;
+        }
+
+        if (HasPassQueued(c))
+        {
+            Debug.LogWarning($"{c.data.characterName} is passing this turn - remove Pass before queuing anything else.");
+            return false;
+        }
+
+        EnsurePlannedAction(c).queue.Add(new QueuedAction { type = QueuedActionType.Rest, duration = duration });
+        Debug.Log($"{c.data.characterName} will rest for {duration:F1}s.");
+        return true;
+    }
+
+    public bool TryQueueFocus(Character c, float duration)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return false;
+        }
+
+        if (HasPassQueued(c))
+        {
+            Debug.LogWarning($"{c.data.characterName} is passing this turn - remove Pass before queuing anything else.");
+            return false;
+        }
+
+        EnsurePlannedAction(c).queue.Add(new QueuedAction { type = QueuedActionType.Focus, duration = duration });
+        Debug.Log($"{c.data.characterName} will focus for {duration:F1}s.");
+        return true;
+    }
+
+    // Pass only makes sense as a character's sole action for the turn - rejected if anything
+    // else is already queued, mirroring the reverse guard every other TryQueue* method has
+    // against queuing on top of an existing Pass.
+    public bool TryQueuePass(Character c)
+    {
+        if (!IsPlanning())
+        {
+            Debug.LogWarning("Can't change actions once execution has started.");
+            return false;
+        }
+
+        PlannedAction planned = EnsurePlannedAction(c);
+        if (planned.queue.Count > 0)
+        {
+            Debug.LogWarning($"{c.data.characterName} already has actions queued this turn - remove them before passing.");
+            return false;
+        }
+
+        planned.queue.Add(new QueuedAction { type = QueuedActionType.Pass });
+        Debug.Log($"{c.data.characterName} will pass this turn.");
+        return true;
+    }
+
+    private bool HasPassQueued(Character c)
+    {
+        return c.plannedAction != null && c.plannedAction.queue.Exists(q => q.type == QueuedActionType.Pass);
     }
 
     public void RemoveQueuedAction(Character c, QueuedAction queuedAction)
@@ -358,6 +444,8 @@ public class PlanningController : MonoBehaviour
         partyBarGO.transform.SetParent(canvasGO.transform, false);
         partyBar = partyBarGO.AddComponent<PartyBarUI>();
         partyBar.Build();
+        partyBar.getCharacters = () => CombatManager.Instance?.playerCharacters;
+        partyBar.onPortraitClicked = SelectCharacter;
 
         var abilityBarGO = new GameObject("AbilityBar");
         abilityBarGO.transform.SetParent(canvasGO.transform, false);

@@ -19,7 +19,7 @@ public class Ability : ScriptableObject
     [Header("Stats")]
     public int manaCost;
     public int staminaCost;
-    public float cooldown;      // adds to character's currentCooldown after use
+    public float cooldown;      // seconds before this specific ability is usable again after use
     public float range;         // max distance the ability can reach
     public int damage;
     public float aoeRadius;     // only used if AbilityType is AreaOfEffect

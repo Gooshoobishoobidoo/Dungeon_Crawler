@@ -22,11 +22,18 @@ public class CharacterData : ScriptableObject
     public int maxStamina;
     public float speed;       // affects action stagger timing in execution phase
     public int initiative;    // breaks ties in ordering
+    public float moveStaminaCostPerUnit; // combat's queued Move spends this much stamina per unit of distance travelled
 
     [Header("Combat Stats")]
     public int attackPower;
     public int defense;
     public float critChance;  // 0.0 - 1.0
+
+    [Header("Regen")]
+    public float manaRegenPerSecond;    // passive, ticks whenever real time is passing (see Character.Update)
+    public float staminaRegenPerSecond; // passive, same gating as above
+    public float focusRegenPerSecond;   // boosted rate while actively using the Focus queued action
+    public float restRegenPerSecond;    // boosted rate while actively using the Rest queued action
 
     [Header("Abilities")]
     public List<Ability> abilities;
