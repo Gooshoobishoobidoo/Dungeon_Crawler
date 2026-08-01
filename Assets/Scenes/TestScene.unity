@@ -1526,12 +1526,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a25784bb2f2ce7b48892c4c4aedc28ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CombatManager
-  playerCharacters:
-  - {fileID: 1702702580}
-  - {fileID: 2057041603}
-  enemyCharacters:
-  - {fileID: 2083969459}
-  - {fileID: 1967542807}
+  playerCharacters: []
+  enemyCharacters: []
   currentPhase: 0
   turnNumber: 0
 --- !u!4 &1312295543

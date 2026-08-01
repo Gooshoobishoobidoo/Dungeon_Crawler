@@ -127,59 +127,107 @@ public class CombatManager : MonoBehaviour
     // planning UI needs this to know to stop accepting input rather than replaying stale orders.
     public bool CombatEnded { get; private set; }
 
-    // Every living enemy: pick the nearest living opponent, use the best ability currently
-    // usable against them if already in range, otherwise close the distance.
+    // Every living enemy: pick the weakest living opponent, then greedily chain as many of its
+    // own abilities as its current mana/stamina cover this turn - closing the distance with a
+    // single Move first if the best available ability isn't already in range. Simpler than the
+    // player's fully general planner: commits to one target and at most one Move for the whole
+    // turn, never switches targets or moves again mid-chain.
     private void AssignEnemyActions()
     {
         foreach (Character c in enemyCharacters)
         {
             if (c.isDead) continue;
 
-            Character target = SelectNearestTarget(c, playerCharacters);
+            Character target = SelectTarget(c, playerCharacters);
             if (target == null) continue;
 
-            Ability ability = ChooseBestAbility(c, target);
-            float distanceToTarget = Vector3.Distance(c.transform.position, target.transform.position);
-
-            if (ability != null && distanceToTarget <= ability.range)
-            {
-                c.plannedAction = BuildAttackAction(c, ability, target);
-            }
-            else if (ability != null)
-            {
-                c.plannedAction = BuildApproachAction(c, target, ability.range);
-            }
-            else
-            {
-                c.plannedAction = BuildApproachAction(c, target, 0f);
-            }
+            c.plannedAction = BuildEnemyTurn(c, target);
         }
     }
 
-    // Isolated so different enemy types can plug in other priorities later (e.g. lowest HP)
-    // without touching the rest of the decision flow.
-    private Character SelectNearestTarget(Character c, List<Character> candidates)
+    private PlannedAction BuildEnemyTurn(Character c, Character target)
     {
-        Character nearest = null;
-        float nearestDistance = float.MaxValue;
+        var planned = new PlannedAction();
+
+        int remainingMana = c.currentMana;
+        int remainingStamina = c.currentStamina;
+        var used = new HashSet<Ability>();
+
+        Ability primary = ChooseBestAbility(c, remainingMana, remainingStamina, used);
+        if (primary == null)
+        {
+            // Nothing usable at all - just close the distance, same fallback as before.
+            planned.queue.Add(new QueuedAction
+            {
+                type = QueuedActionType.Move,
+                target = ApproachDestination(c.transform.position, target.transform.position, 0f)
+            });
+            return planned;
+        }
+
+        Vector3 casterPosition = c.transform.position;
+        if (Vector3.Distance(casterPosition, target.transform.position) > primary.range)
+        {
+            casterPosition = ApproachDestination(casterPosition, target.transform.position, primary.range);
+            planned.queue.Add(new QueuedAction { type = QueuedActionType.Move, target = casterPosition });
+        }
+
+        planned.queue.Add(BuildAbilityQueueEntry(primary, target, casterPosition));
+        remainingMana -= primary.manaCost;
+        remainingStamina -= primary.staminaCost;
+        used.Add(primary);
+
+        // Try to chain a few more from the same final position - no further movement. This is a
+        // safety bound on the loop, not a tuned gameplay limit.
+        const int maxAdditional = 3;
+        for (int i = 0; i < maxAdditional; i++)
+        {
+            Ability next = ChooseBestAbility(c, remainingMana, remainingStamina, used);
+            if (next == null) break;
+
+            // Greedy: stops the moment the single best-by-damage pick doesn't fit in range,
+            // rather than searching for a worse-but-in-range alternative instead.
+            if (Vector3.Distance(casterPosition, target.transform.position) > next.range) break;
+
+            planned.queue.Add(BuildAbilityQueueEntry(next, target, casterPosition));
+            remainingMana -= next.manaCost;
+            remainingStamina -= next.staminaCost;
+            used.Add(next);
+        }
+
+        return planned;
+    }
+
+    // Isolated so different enemy types can plug in other priorities later without touching the
+    // rest of the decision flow. Lowest current HP first ("focus down the weakest target"),
+    // distance as the tiebreaker.
+    private Character SelectTarget(Character c, List<Character> candidates)
+    {
+        Character best = null;
+        int bestHealth = int.MaxValue;
+        float bestDistance = float.MaxValue;
 
         foreach (Character candidate in candidates)
         {
             if (candidate.isDead) continue;
             float distance = Vector3.Distance(c.transform.position, candidate.transform.position);
-            if (distance < nearestDistance)
+
+            if (best == null || candidate.currentHealth < bestHealth ||
+                (candidate.currentHealth == bestHealth && distance < bestDistance))
             {
-                nearestDistance = distance;
-                nearest = candidate;
+                best = candidate;
+                bestHealth = candidate.currentHealth;
+                bestDistance = distance;
             }
         }
 
-        return nearest;
+        return best;
     }
 
-    // Highest-damage ability the character can currently afford and isn't on cooldown.
-    // Self abilities are excluded - there's no self-buff/heal AI logic yet.
-    private Ability ChooseBestAbility(Character c, Character target)
+    // Highest-damage ability the character can afford out of whatever mana/stamina it has left
+    // this turn, isn't on cooldown, and hasn't already been picked this turn. Self abilities are
+    // excluded - there's no self-buff/heal AI logic yet.
+    private Ability ChooseBestAbility(Character c, int availableMana, int availableStamina, HashSet<Ability> excluding)
     {
         if (c.data.abilities == null) return null;
 
@@ -187,37 +235,45 @@ public class CombatManager : MonoBehaviour
         foreach (Ability ability in c.data.abilities)
         {
             if (ability == null || ability.abilityType == AbilityType.Self) continue;
+            if (excluding.Contains(ability)) continue;
             if (c.IsAbilityOnCooldown(ability)) continue;
-            if (c.currentMana < ability.manaCost || c.currentStamina < ability.staminaCost) continue;
+            if (availableMana < ability.manaCost || availableStamina < ability.staminaCost) continue;
             if (best == null || ability.damage > best.damage) best = ability;
         }
 
         return best;
     }
 
-    private PlannedAction BuildAttackAction(Character c, Ability ability, Character target)
+    // Branches by AbilityType the same way ExecuteAbilityUse's resolution already does -
+    // UnitTarget needs targetCharacter, AreaOfEffect targets the ground point at the target's
+    // position, Skillshot needs a direction rather than a point.
+    private QueuedAction BuildAbilityQueueEntry(Ability ability, Character target, Vector3 casterPosition)
     {
-        var queuedAction = new QueuedAction
+        switch (ability.abilityType)
         {
-            type = QueuedActionType.Ability,
-            ability = ability,
-            target = target.transform.position,
-            targetCharacter = ability.abilityType == AbilityType.UnitTarget ? target : null
-        };
+            case AbilityType.UnitTarget:
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position, targetCharacter = target };
 
-        return new PlannedAction { queue = new List<QueuedAction> { queuedAction } };
+            case AbilityType.AreaOfEffect:
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position };
+
+            case AbilityType.Skillshot:
+                Vector3 toTarget = target.transform.position - casterPosition;
+                Vector3 direction = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : Vector3.forward;
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, direction = direction };
+
+            default:
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position };
+        }
     }
 
     // Moves toward target, stopping ~90% of the way to keepRange (0 = walk all the way there).
-    private PlannedAction BuildApproachAction(Character c, Character target, float keepRange)
+    private Vector3 ApproachDestination(Vector3 from, Vector3 to, float keepRange)
     {
-        Vector3 toTarget = target.transform.position - c.transform.position;
+        Vector3 toTarget = to - from;
         float distance = toTarget.magnitude;
         float travel = Mathf.Max(0, distance - keepRange * 0.9f);
-        Vector3 destination = c.transform.position + toTarget.normalized * travel;
-
-        var queuedAction = new QueuedAction { type = QueuedActionType.Move, target = destination };
-        return new PlannedAction { queue = new List<QueuedAction> { queuedAction } };
+        return from + toTarget.normalized * travel;
     }
 
     // -------------------------
