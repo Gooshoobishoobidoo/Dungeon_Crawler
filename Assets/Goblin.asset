@@ -27,6 +27,7 @@ MonoBehaviour:
   staminaRegenPerSecond: 4
   focusRegenPerSecond: 0
   restRegenPerSecond: 5
+  chaseLeashDistance: 3
   abilities:
   - {fileID: 11400000, guid: 7b0402d9a99586546af6e3a2a1b8f58b, type: 2}
   - {fileID: 11400000, guid: 9385dc14a5dc378dad46b5e455bf6d98, type: 2}

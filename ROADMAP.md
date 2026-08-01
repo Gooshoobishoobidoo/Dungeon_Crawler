@@ -131,9 +131,23 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
 - [ ] Smarter detection (vision cones / line-of-sight instead of a plain radius)
 - [ ] Real formation-based group movement (today the whole party converges on one clicked point)
 - [ ] Risk/skill on fleeing (distance checks, opportunity attacks) instead of an unconditional button
-- [ ] Smarter enemy AI - multi-action turns, target prioritization beyond nearest, resource-aware
-      ability choice (currently just "best affordable, non-cooldown ability"). `Goblin` has been
-      given passive stamina regen as a stopgap so it doesn't run dry mid-fight in the meantime.
+- [x] Smarter enemy AI - `AssignEnemyActions`/`BuildEnemyTurn` now builds a real multi-entry queue
+      per enemy: `SelectTarget` goes after lowest current HP (tie-broken by distance) instead of
+      purely nearest, and `ChooseBestAbility` tracks a running mana/stamina budget across the whole
+      turn so an enemy can chain several of its own abilities (capped at 4 total, a safety bound
+      not a tuned limit) instead of ever doing just one thing. Still commits to one target and at
+      most one Move per turn, and picks greedily by damage rather than exhaustively searching for
+      an in-range alternative - deliberate scope cuts, not bugs.
+- [x] **Adaptive chase**: enemies can now track a dodging target within
+      `CharacterData.chaseLeashDistance` (0 = off, opt-in per enemy) - `ExecuteMove` periodically
+      recomputes its destination from the caster's live position (not a rigid shift, which used to
+      pin enemies to a stale offset and made them sidestep away from an approaching target), and
+      `AreaOfEffect`/`Skillshot` re-aim at the target's current position right before firing
+      (`UnitTarget` already re-checks live position on its own, so it only needed the Move fixed).
+      Enemies also now commit to `ApproachDestination`'s `PenetrationFactor` (70% of an ability's
+      range, not just inside the boundary) - otherwise an approaching target could leave an enemy
+      with almost no travel left, making its attack feel like it fires instantly. Real fix (cast
+      times, a dodge mechanic) is future work; this is a cheap mitigation until then.
 
 ## Tech debt / backlog
 

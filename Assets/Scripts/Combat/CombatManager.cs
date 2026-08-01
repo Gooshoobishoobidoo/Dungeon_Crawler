@@ -149,6 +149,10 @@ public class CombatManager : MonoBehaviour
     {
         var planned = new PlannedAction();
 
+        // Captured once - the whole turn commits to this one target, so every entry (the Move and
+        // every ability) shares the same anchor for ChaseShift to measure from.
+        Vector3 chaseAnchor = target.transform.position;
+
         int remainingMana = c.currentMana;
         int remainingStamina = c.currentStamina;
         var used = new HashSet<Ability>();
@@ -156,7 +160,8 @@ public class CombatManager : MonoBehaviour
         Ability primary = ChooseBestAbility(c, remainingMana, remainingStamina, used);
         if (primary == null)
         {
-            // Nothing usable at all - just close the distance, same fallback as before.
+            // Nothing usable at all - just close the distance, same fallback as before. No
+            // chase here: there's no ability being set up to land, so nothing to adapt for.
             planned.queue.Add(new QueuedAction
             {
                 type = QueuedActionType.Move,
@@ -169,10 +174,17 @@ public class CombatManager : MonoBehaviour
         if (Vector3.Distance(casterPosition, target.transform.position) > primary.range)
         {
             casterPosition = ApproachDestination(casterPosition, target.transform.position, primary.range);
-            planned.queue.Add(new QueuedAction { type = QueuedActionType.Move, target = casterPosition });
+            planned.queue.Add(new QueuedAction
+            {
+                type = QueuedActionType.Move,
+                target = casterPosition,
+                chaseTarget = target,
+                chaseAnchor = chaseAnchor,
+                chaseRange = primary.range
+            });
         }
 
-        planned.queue.Add(BuildAbilityQueueEntry(primary, target, casterPosition));
+        planned.queue.Add(BuildAbilityQueueEntry(primary, target, casterPosition, chaseAnchor));
         remainingMana -= primary.manaCost;
         remainingStamina -= primary.staminaCost;
         used.Add(primary);
@@ -189,7 +201,7 @@ public class CombatManager : MonoBehaviour
             // rather than searching for a worse-but-in-range alternative instead.
             if (Vector3.Distance(casterPosition, target.transform.position) > next.range) break;
 
-            planned.queue.Add(BuildAbilityQueueEntry(next, target, casterPosition));
+            planned.queue.Add(BuildAbilityQueueEntry(next, target, casterPosition, chaseAnchor));
             remainingMana -= next.manaCost;
             remainingStamina -= next.staminaCost;
             used.Add(next);
@@ -246,33 +258,45 @@ public class CombatManager : MonoBehaviour
 
     // Branches by AbilityType the same way ExecuteAbilityUse's resolution already does -
     // UnitTarget needs targetCharacter, AreaOfEffect targets the ground point at the target's
-    // position, Skillshot needs a direction rather than a point.
-    private QueuedAction BuildAbilityQueueEntry(Ability ability, Character target, Vector3 casterPosition)
+    // position, Skillshot needs a direction rather than a point. Every entry also carries
+    // chaseTarget/chaseAnchor so ExecuteAbilityUse can re-aim AoE/Skillshot within a leash right
+    // before it resolves (UnitTarget ignores these - it already re-checks the target's live
+    // position on its own).
+    private QueuedAction BuildAbilityQueueEntry(Ability ability, Character target, Vector3 casterPosition, Vector3 chaseAnchor)
     {
         switch (ability.abilityType)
         {
             case AbilityType.UnitTarget:
-                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position, targetCharacter = target };
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position, targetCharacter = target, chaseTarget = target, chaseAnchor = chaseAnchor };
 
             case AbilityType.AreaOfEffect:
-                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position };
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position, chaseTarget = target, chaseAnchor = chaseAnchor };
 
             case AbilityType.Skillshot:
                 Vector3 toTarget = target.transform.position - casterPosition;
                 Vector3 direction = toTarget.sqrMagnitude > 0.0001f ? toTarget.normalized : Vector3.forward;
-                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, direction = direction };
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, direction = direction, chaseTarget = target, chaseAnchor = chaseAnchor };
 
             default:
-                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position };
+                return new QueuedAction { type = QueuedActionType.Ability, ability = ability, target = target.transform.position, chaseTarget = target, chaseAnchor = chaseAnchor };
         }
     }
 
-    // Moves toward target, stopping ~90% of the way to keepRange (0 = walk all the way there).
+    // Moves toward target, stopping at keepRange * PenetrationFactor rather than right at the
+    // range boundary (0 = walk all the way there). Committing well within range instead of just
+    // barely inside it means an enemy always has real ground left to cover even if its target
+    // walks toward it mid-chase - without this, an approaching target could leave the enemy with
+    // almost no travel left, making its follow-up attack feel like it fires instantly instead of
+    // "running in and swinging." A real fix (cast times, a dodge mechanic) is future work; this
+    // is a cheap, effective mitigation until then. Shared by BuildEnemyTurn's initial plan and
+    // ExecuteMove's live chase recompute, so both stay consistent with each other for free.
+    private const float PenetrationFactor = 0.7f;
+
     private Vector3 ApproachDestination(Vector3 from, Vector3 to, float keepRange)
     {
         Vector3 toTarget = to - from;
         float distance = toTarget.magnitude;
-        float travel = Mathf.Max(0, distance - keepRange * 0.9f);
+        float travel = Mathf.Max(0, distance - keepRange * PenetrationFactor);
         return from + toTarget.normalized * travel;
     }
 
@@ -331,7 +355,7 @@ public class CombatManager : MonoBehaviour
             switch (queuedAction.type)
             {
                 case QueuedActionType.Move:
-                    yield return ExecuteMove(c, queuedAction.target);
+                    yield return ExecuteMove(c, queuedAction);
                     break;
 
                 case QueuedActionType.Item:
@@ -363,12 +387,16 @@ public class CombatManager : MonoBehaviour
     // another queued entry. Same 8-second timeout safeguard as before - agents converging on
     // overlapping destinations can still jostle indefinitely without ever settling into their
     // stopping distance - just scoped to one character instead of blocking everyone.
-    private IEnumerator ExecuteMove(Character c, Vector3 destination)
+    private IEnumerator ExecuteMove(Character c, QueuedAction queuedAction)
     {
-        c.MoveTo(destination);
+        Vector3 originalDestination = queuedAction.target;
+        Vector3 currentDestination = originalDestination;
+        c.MoveTo(currentDestination);
 
         const float timeoutSeconds = 8f;
+        const float chaseCheckInterval = 0.25f; // re-pathing every frame would make the agent visibly jitter
         float timer = 0f;
+        float chaseCheckTimer = 0f;
         float costAccumulator = 0f;
         Vector3 lastPosition = c.transform.position;
 
@@ -405,7 +433,49 @@ public class CombatManager : MonoBehaviour
                 c.StopMoving();
                 break;
             }
+
+            // Enemy AI only (chaseTarget is never set by player-facing queueing) - periodically
+            // recompute the ideal approach destination from the caster's own *current* position
+            // toward the target's *current* position, then clamp how far that ideal point is
+            // allowed to differ from the originally-planned destination to chaseLeashDistance.
+            // Using the caster's live position (not a fixed anchor/rigid offset) matters: a rigid
+            // "shift the destination by however far the target moved" approach keeps the enemy
+            // pinned to its old relative offset even when the target walks *toward* it, sending
+            // it wandering off to maintain a stale offset instead of recognizing it's already
+            // close enough. Recomputing from scratch each check avoids that.
+            if (queuedAction.chaseTarget != null)
+            {
+                chaseCheckTimer += Time.deltaTime;
+                if (chaseCheckTimer >= chaseCheckInterval)
+                {
+                    chaseCheckTimer = 0f;
+                    if (!queuedAction.chaseTarget.isDead && c.data.chaseLeashDistance > 0f)
+                    {
+                        Vector3 idealDestination = ApproachDestination(c.transform.position, queuedAction.chaseTarget.transform.position, queuedAction.chaseRange);
+                        Vector3 clampedOffset = Vector3.ClampMagnitude(idealDestination - originalDestination, c.data.chaseLeashDistance);
+                        Vector3 chased = originalDestination + clampedOffset;
+
+                        if (Vector3.Distance(chased, currentDestination) > 0.1f)
+                        {
+                            currentDestination = chased;
+                            c.MoveTo(currentDestination);
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    // Shifts by however far chaseTarget has moved since chaseAnchor was captured at planning
+    // time, capped at leash units - "chase within a leash": small dodges get tracked, large ones
+    // don't. Returns zero (a no-op) for every player-queued action, since those never set
+    // chaseTarget - this is purely additive for enemy AI.
+    private Vector3 ChaseShift(Character chaseTarget, Vector3 chaseAnchor, float leash)
+    {
+        if (chaseTarget == null || chaseTarget.isDead || leash <= 0f) return Vector3.zero;
+
+        Vector3 shift = chaseTarget.transform.position - chaseAnchor;
+        return Vector3.ClampMagnitude(shift, leash);
     }
 
     private IEnumerator ExecuteAbilityUse(Character c, QueuedAction queuedAction)
@@ -423,11 +493,20 @@ public class CombatManager : MonoBehaviour
                 break;
 
             case AbilityType.AreaOfEffect:
-                ResolveAreaTarget(c, ability, queuedAction.target);
+                Vector3 aoePoint = queuedAction.target + ChaseShift(queuedAction.chaseTarget, queuedAction.chaseAnchor, c.data.chaseLeashDistance);
+                ResolveAreaTarget(c, ability, aoePoint);
                 break;
 
             case AbilityType.Skillshot:
-                ResolveSkillshot(c, ability, queuedAction.direction);
+                // Re-aim from the caster's actual position (after any chase-move) toward the
+                // chase-adjusted aim point, rather than the direction baked in at planning time.
+                // Falls back to queuedAction.direction unchanged for player-queued Skillshots,
+                // since ChaseShift is a no-op when chaseTarget is null.
+                Vector3 aimPoint = queuedAction.chaseAnchor + ChaseShift(queuedAction.chaseTarget, queuedAction.chaseAnchor, c.data.chaseLeashDistance);
+                Vector3 aimDirection = queuedAction.chaseTarget != null
+                    ? (aimPoint - c.transform.position).normalized
+                    : queuedAction.direction;
+                ResolveSkillshot(c, ability, aimDirection);
                 break;
 
             case AbilityType.Self:

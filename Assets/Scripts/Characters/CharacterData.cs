@@ -35,6 +35,9 @@ public class CharacterData : ScriptableObject
     public float focusRegenPerSecond;   // boosted rate while actively using the Focus queued action
     public float restRegenPerSecond;    // boosted rate while actively using the Rest queued action
 
+    [Header("AI")]
+    public float chaseLeashDistance; // enemy AI only - how far a queued Move/ability aim can shift to track a dodging target, capped at this distance. 0 = no chase.
+
     [Header("Abilities")]
     public List<Ability> abilities;
 

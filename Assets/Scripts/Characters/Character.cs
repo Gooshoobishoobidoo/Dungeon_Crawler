@@ -222,7 +222,15 @@ public class Character : MonoBehaviour
     private void Die()
     {
         isDead = true;
+
+        // Has to happen before disabling the agent below - Update()'s arrival check reads
+        // agent.remainingDistance whenever isMoving is true, which throws once the agent is no
+        // longer active on a NavMesh. A character dying mid-move (the common case - dying is
+        // usually the result of getting hit while dodging) would otherwise spam that error every
+        // frame for the rest of the scene's life, since nothing else ever clears isMoving again.
+        isMoving = false;
         if (agent != null) agent.enabled = false;
+
         Debug.Log($"{data.characterName} has died.");
     }
 
@@ -268,6 +276,13 @@ public class QueuedAction
     public Character targetCharacter; // UnitTarget abilities only
     public Vector3 direction; // normalized aim direction - Skillshot abilities only
     public float duration; // channel length - Rest/Focus only
+
+    // Enemy AI only, never set by player-facing queueing - lets this Move/ability track a
+    // dodging target within CharacterData.chaseLeashDistance. chaseAnchor is the target's
+    // position at the moment this entry was planned; the shift is always measured from here.
+    public Character chaseTarget;
+    public Vector3 chaseAnchor;
+    public float chaseRange; // Move only - the ability range this Move was closing distance for
 
     public string DisplayName => type switch
     {
