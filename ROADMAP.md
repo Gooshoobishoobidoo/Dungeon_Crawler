@@ -104,11 +104,27 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       spends stamina proportional to distance travelled (`CharacterData.moveStaminaCostPerUnit`).
       Party portraits/stats (`PartyBarUI`) are now shared between combat and Exploration instead
       of combat-only, so resources are visible between fights too.
+- [x] **Playtest round 3 fixes**: Move's stamina cost now drains gradually per-frame based on
+      ground actually covered (`CombatManager.ExecuteMove`) instead of deducting the whole cost up
+      front, and stops the character the moment stamina runs dry instead of letting them coast to
+      the destination for free. Passive stamina regen (not mana) now pauses while `isMoving`, in
+      both Exploration and combat. Also fixed a `QueueDisplayUI` bug where a newly-started turn's
+      first queued action could silently fail to display until something else forced a rebuild
+      (`Rebuild()` wasn't resetting `lastKnownCount` on a null `plannedAction`).
 
 ## Phase 5 — Party selection & run structure
 
-- [ ] Party-selection screen before entering the dungeon
-- [ ] Real game-over / return-to-town flow on a full party wipe (currently just a log/TODO in `DungeonManager.GameOver`)
+- [x] Party-selection screen before entering the dungeon (`PartySelectionController`) - candidates
+      are pre-placed, initially-deactivated `Character` GameObjects (no prefab instantiation, since
+      no `CharacterData` has `characterPrefab` assigned); toggle-select who to bring, Begin
+      activates the chosen ones and hands them to `DungeonManager.BeginRun`. `GameMode` gained a
+      `PartySelection` value (placed first so the scene's already-serialized `currentMode: 0`
+      starts every run there for free) that `ExplorationController`/`PlanningController` already
+      correctly hide themselves during, with no changes needed to either.
+- [x] Real game-over / return-to-town flow (`GameOverUI`) on a full party wipe - `DungeonManager.
+      GameOver()` shows a Game Over overlay instead of just logging; Return to Town reloads the
+      scene outright (`SceneManager.LoadScene`) rather than hand-resetting every subsystem, which
+      needed `TestScene` added to Build Settings (previously only `SampleScene.unity` was listed).
 
 ## Phase 6 — Polish
 

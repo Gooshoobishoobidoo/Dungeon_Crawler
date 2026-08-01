@@ -1,8 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// PartySelection is deliberately first: TestScene.unity already has currentMode explicitly
+// serialized as 0, so making PartySelection index 0 starts every run there for free without
+// needing any scene-file edit for this field.
 public enum GameMode
 {
+    PartySelection,
     Exploration,
     Combat
 }
@@ -18,7 +22,7 @@ public class DungeonManager : MonoBehaviour
     public List<Character> party = new List<Character>();
 
     [Header("State")]
-    public GameMode currentMode = GameMode.Exploration;
+    public GameMode currentMode = GameMode.PartySelection;
 
     // Shared party-wide pool - currency isn't really an "item" any one character carries,
     // unlike everything else in inventory which is per-character.
@@ -83,10 +87,17 @@ public class DungeonManager : MonoBehaviour
         }
     }
 
+    // Called by PartySelectionController once the player confirms who they're bringing.
+    public void BeginRun(List<Character> chosenParty)
+    {
+        party = chosenParty;
+        currentMode = GameMode.Exploration;
+    }
+
     public void GameOver()
     {
         Debug.Log("Party wiped - run over.");
-        // TODO: return-to-party-select flow (future phase)
+        GameOverUI.Instance?.Show();
     }
 
     private List<Character> LivingParty()
