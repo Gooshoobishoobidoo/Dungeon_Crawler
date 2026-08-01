@@ -19,6 +19,7 @@ MonoBehaviour:
   maxStamina: 50
   speed: 4.5
   initiative: 5
+  moveStaminaCostPerUnit: 1
   attackPower: 10
   defense: 2
   critChance: 0.2

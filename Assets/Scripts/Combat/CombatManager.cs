@@ -309,15 +309,12 @@ public class CombatManager : MonoBehaviour
     // stopping distance - just scoped to one character instead of blocking everyone.
     private IEnumerator ExecuteMove(Character c, Vector3 destination)
     {
-        // Charged once up front for the intended distance, not gradually like Rest/Focus - Move
-        // has no partial-credit/interrupt concept to preserve if something goes wrong mid-walk.
-        float distance = Vector3.Distance(c.transform.position, destination);
-        c.SpendStamina(Mathf.RoundToInt(distance * c.data.moveStaminaCostPerUnit));
-
         c.MoveTo(destination);
 
         const float timeoutSeconds = 8f;
         float timer = 0f;
+        float costAccumulator = 0f;
+        Vector3 lastPosition = c.transform.position;
 
         while (c.isMoving && !c.isDead)
         {
@@ -330,6 +327,28 @@ public class CombatManager : MonoBehaviour
             }
 
             yield return null;
+
+            // Drain proportional to ground actually covered this frame (not the straight-line
+            // distance to the destination - handles path curves/deceleration correctly), then
+            // stop the moment stamina actually runs dry instead of letting them coast the rest
+            // of the way for free. Gated on moveStaminaCostPerUnit > 0 so a character who's
+            // already at 0 stamina from other spending isn't blocked from moving on an
+            // asset/character that hasn't set a movement cost at all.
+            float stepDistance = Vector3.Distance(c.transform.position, lastPosition);
+            lastPosition = c.transform.position;
+
+            costAccumulator += stepDistance * c.data.moveStaminaCostPerUnit;
+            while (costAccumulator >= 1f)
+            {
+                c.SpendStamina(1);
+                costAccumulator -= 1f;
+            }
+
+            if (c.data.moveStaminaCostPerUnit > 0f && c.currentStamina <= 0)
+            {
+                c.StopMoving();
+                break;
+            }
         }
     }
 

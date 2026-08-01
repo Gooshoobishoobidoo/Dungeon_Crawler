@@ -58,7 +58,16 @@ public class QueueDisplayUI : MonoBehaviour
     private void Rebuild()
     {
         Clear();
-        if (shownCharacter?.plannedAction == null) return;
+        if (shownCharacter?.plannedAction == null)
+        {
+            // Without this, lastKnownCount stays stuck at whatever it was before plannedAction
+            // went null (every new turn) instead of resetting to 0 - if the new turn's first
+            // queued count then happens to match that stale value (e.g. always 1, if a character
+            // typically queues exactly one action a turn), Update()'s change-detection never
+            // fires and the display stays empty until something else calls Show() again.
+            lastKnownCount = 0;
+            return;
+        }
 
         foreach (QueuedAction queuedAction in shownCharacter.plannedAction.queue)
         {

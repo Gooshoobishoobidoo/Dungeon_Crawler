@@ -106,11 +106,18 @@ public class Character : MonoBehaviour
                 manaRegenAccumulator -= 1f;
             }
 
-            staminaRegenAccumulator += data.staminaRegenPerSecond * Time.deltaTime;
-            while (staminaRegenAccumulator >= 1f)
+            // Stamina specifically pauses while actively moving (mana doesn't) - isMoving is
+            // shared by both ExplorationController's free-roam movement and combat's queued
+            // Move, so this covers both without touching either controller. Regen simply resumes
+            // where it left off once movement stops - the accumulator itself isn't reset here.
+            if (!isMoving)
             {
-                RestoreStamina(1);
-                staminaRegenAccumulator -= 1f;
+                staminaRegenAccumulator += data.staminaRegenPerSecond * Time.deltaTime;
+                while (staminaRegenAccumulator >= 1f)
+                {
+                    RestoreStamina(1);
+                    staminaRegenAccumulator -= 1f;
+                }
             }
         }
     }
