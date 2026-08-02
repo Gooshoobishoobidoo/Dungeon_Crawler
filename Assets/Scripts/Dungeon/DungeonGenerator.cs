@@ -52,8 +52,21 @@ public class DungeonGenerator : MonoBehaviour
 
     public void Generate()
     {
-        if (currentFloor != null) Destroy(currentFloor.gameObject);
+        if (startRoomPrefab == null || roomPrefabs.Count == 0)
+        {
+            Debug.LogError("DungeonGenerator needs a startRoomPrefab and at least one entry in roomPrefabs before it can generate.");
+            return;
+        }
+
+        // Immediate, not deferred Destroy: BuildNavMesh() runs later in this same call and must
+        // only see the new floor's geometry, not last floor's still-pending-destruction leftovers.
+        if (currentFloor != null) DestroyImmediate(currentFloor.gameObject);
+
         currentFloor = new GameObject("CurrentFloor").transform;
+        // Parented under this object so the NavMeshSurface (also on this object, Children collect
+        // mode) actually finds the instantiated rooms - they'd otherwise sit in a sibling
+        // hierarchy the surface never scans, silently baking an empty NavMesh.
+        currentFloor.SetParent(transform, false);
 
         Vector2Int start = Vector2Int.zero;
         Dictionary<Vector2Int, HashSet<Direction>> openSides = BuildGraph(start);
@@ -85,7 +98,9 @@ public class DungeonGenerator : MonoBehaviour
         var openSides = new Dictionary<Vector2Int, HashSet<Direction>> { { start, new HashSet<Direction>() } };
         var frontier = new List<Vector2Int> { start };
 
-        int targetCount = Random.Range(minRooms, maxRooms + 1);
+        // Clamped defensively - Random.Range(min, max) misbehaves if min ends up greater than
+        // max (e.g. the two Inspector fields set in the wrong order).
+        int targetCount = Random.Range(Mathf.Max(1, minRooms), Mathf.Max(minRooms, maxRooms) + 1);
 
         while (openSides.Count < targetCount && frontier.Count > 0)
         {
