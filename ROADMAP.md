@@ -126,7 +126,7 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       scene outright (`SceneManager.LoadScene`) rather than hand-resetting every subsystem, which
       needed `TestScene` added to Build Settings (previously only `SampleScene.unity` was listed).
 
-## Phase 6 — Polish
+## Phase 6 — Polish (done)
 
 - [x] Smarter detection - `EnemyPatrol` gained `detectionAngle` (full cone angle, default 360°
       preserves the old omnidirectional behavior) and a `Physics.Raycast` line-of-sight check, both
@@ -144,7 +144,16 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       assignment rather than fixed roster order, so nobody criss-crosses the party to reach a far
       slot when a nearer one is free. Pattern is written to extend gracefully (straight back) past
       4 slots even though today's 4-hero roster cap never exercises that path.
-- [ ] Risk/skill on fleeing (distance checks, opportunity attacks) instead of an unconditional button
+- [x] **Risk/skill on fleeing** - `CombatManager.Flee()` still fails outright under the same
+      `EnemyPatrol.detectionRadius` check as before, but a failed attempt now costs something: every
+      living enemy whose own best usable ability (`ChooseBestAbility`, the same pick the normal
+      enemy-turn builder uses) can currently reach a player gets one free opportunity attack
+      (`OpportunityAttacks`) as the party tries to disengage, run through the real ability pipeline
+      (`ExecuteAbilityUse` - VFX, cooldowns, damage) rather than a lightweight stand-in. A clean
+      escape (nobody within detection range at all) still costs nothing. A `fleeResolving` guard
+      stops a second Flee click from double-triggering while the parting shots are still animating,
+      and `CheckCombatEnd()` runs afterward so a parting shot that wipes the party still correctly
+      triggers Game Over instead of dropping back into a fresh Planning phase with a dead party.
 - [x] Smarter enemy AI - `AssignEnemyActions`/`BuildEnemyTurn` now builds a real multi-entry queue
       per enemy: `SelectTarget` goes after lowest current HP (tie-broken by distance) instead of
       purely nearest, and `ChooseBestAbility` tracks a running mana/stamina budget across the whole

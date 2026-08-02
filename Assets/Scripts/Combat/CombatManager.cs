@@ -52,11 +52,22 @@ public class CombatManager : MonoBehaviour
         StartPlanningPhase();
     }
 
+    // Guards against a second Flee() re-entering while OpportunityAttacks() is still animating a
+    // punished failed attempt (the Flee button has no phase-based interactable gating today, so
+    // it stays clickable through that ~0.5s+ window).
+    private bool fleeResolving;
+
     // Fails if any living enemy still has a living player within its own detection radius -
     // reuses EnemyPatrol.detectionRadius rather than a separate flee-specific range, so it's
     // the exact same "has this enemy noticed you" rule as triggering the fight in the first place.
+    // A failed attempt now costs something: any enemy whose best ability can actually reach a
+    // player gets one free opportunity attack as the party tries to disengage (OpportunityAttacks
+    // below) - a clean escape (nobody within detection range at all) never triggers one.
     public bool Flee()
     {
+        if (fleeResolving) return false;
+
+        bool blocked = false;
         foreach (Character enemy in enemyCharacters)
         {
             if (enemy.isDead) continue;
@@ -70,15 +81,75 @@ public class CombatManager : MonoBehaviour
                 if (Vector3.Distance(enemy.transform.position, player.transform.position) <= detectionRadius)
                 {
                     Debug.Log($"Flee failed - still within {enemy.data.characterName}'s detection range.");
-                    return false;
+                    blocked = true;
                 }
             }
+        }
+
+        if (blocked)
+        {
+            fleeResolving = true;
+            StartCoroutine(OpportunityAttacks());
+            return false;
         }
 
         Debug.Log("Party flees the encounter.");
         CombatEnded = true;
         DungeonManager.Instance?.ReturnToExploration();
         return true;
+    }
+
+    // One free parting shot per enemy that can actually reach a player right now, using the same
+    // "best usable ability" pick the normal enemy turn-builder uses (ChooseBestAbility) and the
+    // real ability execution pipeline (ExecuteAbilityUse) rather than a lightweight stand-in, so
+    // VFX/cooldowns/damage all resolve exactly like a normal attack would.
+    private IEnumerator OpportunityAttacks()
+    {
+        List<Coroutine> running = new List<Coroutine>();
+        foreach (Character enemy in enemyCharacters)
+        {
+            if (enemy.isDead) continue;
+
+            Ability ability = ChooseBestAbility(enemy, enemy.currentMana, enemy.currentStamina, new HashSet<Ability>());
+            if (ability == null) continue;
+
+            Character target = FindOpportunityTarget(enemy, ability);
+            if (target == null) continue;
+
+            QueuedAction attack = BuildAbilityQueueEntry(ability, target, enemy.transform.position, target.transform.position);
+            running.Add(StartCoroutine(ExecuteAbilityUse(enemy, attack)));
+        }
+
+        foreach (Coroutine r in running) yield return r;
+
+        fleeResolving = false;
+
+        // A parting shot can wipe the party - reuse the same end-of-turn check a normal
+        // Execution pass runs, so Game Over still triggers correctly instead of silently
+        // dropping back into Planning with a dead party. Its own fallback (StartPlanningPhase)
+        // is exactly what should happen if nobody died: back to Planning after a punished attempt.
+        CheckCombatEnd();
+    }
+
+    // Nearest living player within the given ability's range - mirrors the distance-check style
+    // Flee() itself already uses above, just per-ability instead of per-detection-radius.
+    private Character FindOpportunityTarget(Character enemy, Ability ability)
+    {
+        Character best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (Character player in playerCharacters)
+        {
+            if (player.isDead) continue;
+            float distance = Vector3.Distance(enemy.transform.position, player.transform.position);
+            if (distance <= ability.range && distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = player;
+            }
+        }
+
+        return best;
     }
 
     // -------------------------
