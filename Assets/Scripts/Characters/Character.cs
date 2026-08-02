@@ -155,6 +155,16 @@ public class Character : MonoBehaviour
         isMoving = false;
     }
 
+    // Instant relocation (e.g. placing the party at a freshly generated floor's start room) -
+    // NavMeshAgent.Warp keeps the agent's internal state in sync with the teleport, unlike
+    // setting transform.position directly which would leave the agent still thinking it's
+    // wherever it was and pathing from the stale position on its next move.
+    public void WarpTo(Vector3 position)
+    {
+        if (agent != null) agent.Warp(position);
+        else transform.position = position;
+    }
+
     public void TakeDamage(int amount)
     {
         int mitigated = Mathf.Max(0, amount - data.defense);

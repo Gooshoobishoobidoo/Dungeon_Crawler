@@ -519,7 +519,7 @@ GameObject:
   - component: {fileID: 128007264}
   - component: {fileID: 128007263}
   m_Layer: 0
-  m_Name: Goblin B
+  m_Name: Goblin Archer B
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -574,7 +574,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 745110ce4ae512a469654de73dd2efcd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Character
-  data: {fileID: 11400000, guid: a692c1704b1621844bcf99f03b0a4cb8, type: 2}
+  data: {fileID: 11400000, guid: 4a3b0d0a74c04a44aa98b72257bad30f, type: 2}
   currentHealth: 0
   currentMana: 0
   currentStamina: 0

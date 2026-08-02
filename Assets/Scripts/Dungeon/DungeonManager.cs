@@ -21,6 +21,9 @@ public class DungeonManager : MonoBehaviour
     [Header("Party")]
     public List<Character> party = new List<Character>();
 
+    [Header("Generation")]
+    public DungeonGenerator dungeonGenerator;
+
     [Header("State")]
     public GameMode currentMode = GameMode.PartySelection;
 
@@ -88,9 +91,19 @@ public class DungeonManager : MonoBehaviour
     }
 
     // Called by PartySelectionController once the player confirms who they're bringing.
+    // Generates a fresh floor before dropping the party into it - a new run always means a new
+    // layout (roguelike: no cross-run persistence), which a scene reload after Game Over already
+    // guarantees happens from a clean slate.
     public void BeginRun(List<Character> chosenParty)
     {
         party = chosenParty;
+
+        if (dungeonGenerator != null)
+        {
+            dungeonGenerator.Generate();
+            foreach (Character member in party) member.WarpTo(dungeonGenerator.StartPosition);
+        }
+
         currentMode = GameMode.Exploration;
     }
 
