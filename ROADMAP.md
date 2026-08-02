@@ -135,7 +135,15 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       already rotates the transform to face movement. `OnDrawGizmosSelected` draws the radius/cone
       for tuning. `CombatManager.Flee()` deliberately still uses plain radius - an already-engaged
       enemy shouldn't "lose track" of you from a facing/cover technicality.
-- [ ] Real formation-based group movement (today the whole party converges on one clicked point)
+- [x] **Formation-based group movement** - `ExplorationController.MovePartyInFormation` replaces
+      the old "everyone targets the exact same point" click-to-move with a 4-slot diamond (point at
+      the click, two flanks behind-and-to-the-side, one anchor straight behind), oriented toward the
+      party's direction of travel rather than fixed world axes. Each slot is passed through
+      `NavMesh.SamplePosition` before use (falls back to the raw destination if a slot would land
+      off-mesh, e.g. against a wall), and characters are matched to slots by greedy nearest-pair
+      assignment rather than fixed roster order, so nobody criss-crosses the party to reach a far
+      slot when a nearer one is free. Pattern is written to extend gracefully (straight back) past
+      4 slots even though today's 4-hero roster cap never exercises that path.
 - [ ] Risk/skill on fleeing (distance checks, opportunity attacks) instead of an unconditional button
 - [x] Smarter enemy AI - `AssignEnemyActions`/`BuildEnemyTurn` now builds a real multi-entry queue
       per enemy: `SelectTarget` goes after lowest current HP (tie-broken by distance) instead of

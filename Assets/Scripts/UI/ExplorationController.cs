@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
@@ -10,6 +12,7 @@ using UnityEngine.UI;
 public class ExplorationController : MonoBehaviour
 {
     private const float InteractRange = 2f;
+    private const float FormationSpacing = 1.5f;
 
     private Camera cam;
     private ItemPickup pendingPickup;
@@ -78,11 +81,99 @@ public class ExplorationController : MonoBehaviour
         // (re)targets it. Either way the party still walks toward the clicked point.
         pendingPickup = hit.collider.GetComponentInParent<ItemPickup>();
 
+        MovePartyInFormation(hit.point);
+    }
+
+    // Spreads the party across distinct points around the destination instead of sending every
+    // member to the exact same spot - NavMeshAgent avoidance alone just left them jostling for it.
+    private void MovePartyInFormation(Vector3 destination)
+    {
+        List<Character> movable = new List<Character>();
         foreach (Character member in DungeonManager.Instance.party)
         {
             // Busy (channeling an item) characters ignore new move orders - the rest of the
-            // party can still move independently, same as any other per-character MoveTo call.
-            if (!member.isDead && !member.isBusy) member.MoveTo(hit.point);
+            // party can still move independently.
+            if (!member.isDead && !member.isBusy) movable.Add(member);
+        }
+        if (movable.Count == 0) return;
+
+        Vector3 centroid = Vector3.zero;
+        foreach (Character member in movable) centroid += member.transform.position;
+        centroid /= movable.Count;
+
+        // Flattened onto XZ so a party on uneven ground doesn't tilt the formation. Falls back to
+        // world-forward if the click lands right on the party (near-zero direction can't be
+        // normalized into a sensible "back" axis for the formation).
+        Vector3 travel = destination - centroid;
+        travel.y = 0f;
+        Vector3 travelDir = travel.sqrMagnitude > 0.01f ? travel.normalized : Vector3.forward;
+        Vector3 right = Vector3.Cross(Vector3.up, travelDir);
+
+        List<Vector3> slots = BuildFormationSlots(movable.Count, destination, travelDir, right);
+        AssignSlotsByProximity(movable, slots);
+    }
+
+    // Diamond: point at the clicked destination, two flanks behind-and-to-the-side, one anchor
+    // straight behind. (side, rows-back) in formation-local space, scaled by FormationSpacing.
+    private static readonly Vector2[] DiamondOffsets =
+    {
+        new Vector2(0f, 0f),  // point (front)
+        new Vector2(-1f, 1f), // left flank
+        new Vector2(1f, 1f),  // right flank
+        new Vector2(0f, 2f),  // back anchor
+    };
+
+    private List<Vector3> BuildFormationSlots(int count, Vector3 destination, Vector3 back, Vector3 right)
+    {
+        List<Vector3> slots = new List<Vector3>();
+        for (int i = 0; i < count; i++)
+        {
+            // Beyond the 4-slot diamond (not reachable at today's 4-hero roster cap): keep
+            // extending straight back so this doesn't silently stack characters on top of slot 3.
+            Vector2 pattern = i < DiamondOffsets.Length
+                ? DiamondOffsets[i]
+                : new Vector2(0f, 2f + (i - DiamondOffsets.Length + 1));
+
+            Vector3 offset = right * (pattern.x * FormationSpacing) + -back * (pattern.y * FormationSpacing);
+            Vector3 target = destination + offset;
+            if (NavMesh.SamplePosition(target, out NavMeshHit navHit, FormationSpacing * 2f, NavMesh.AllAreas))
+                slots.Add(navHit.position);
+            else
+                slots.Add(destination);
+        }
+        return slots;
+    }
+
+    // Greedily pairs whichever character/slot are currently closest, repeatedly, rather than a
+    // fixed index order - keeps characters from criss-crossing to reach a far slot when a nearer
+    // one is available to them.
+    private void AssignSlotsByProximity(List<Character> members, List<Vector3> slots)
+    {
+        List<Character> remainingMembers = new List<Character>(members);
+        List<Vector3> remainingSlots = new List<Vector3>(slots);
+
+        while (remainingMembers.Count > 0)
+        {
+            float bestDist = float.MaxValue;
+            int bestMemberIndex = 0, bestSlotIndex = 0;
+
+            for (int m = 0; m < remainingMembers.Count; m++)
+            {
+                for (int s = 0; s < remainingSlots.Count; s++)
+                {
+                    float dist = Vector3.SqrMagnitude(remainingMembers[m].transform.position - remainingSlots[s]);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestMemberIndex = m;
+                        bestSlotIndex = s;
+                    }
+                }
+            }
+
+            remainingMembers[bestMemberIndex].MoveTo(remainingSlots[bestSlotIndex]);
+            remainingMembers.RemoveAt(bestMemberIndex);
+            remainingSlots.RemoveAt(bestSlotIndex);
         }
     }
 
