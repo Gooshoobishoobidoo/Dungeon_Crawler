@@ -197,9 +197,22 @@ routes. Split into steps deliberately, same reasoning as Phase 4's Step 1/Step 2
       (`NavMeshAgent.Warp`, so the agent's internal state stays in sync with the teleport instead
       of just moving the transform). No enemies/items populate rooms yet, and the old hand-placed
       `TestScene` zones/`RestRoomTransition` are untouched - both are Step 1 scope cuts, not bugs.
-- [ ] Step 2 - populate rooms: spawn-point marker components, enemy/item prefabs actually
-      instantiated via `CharacterData.characterPrefab` (already on the data model, unused until
-      now), loot/difficulty tuning.
+- [x] **Step 2 - populate rooms**: `RoomTemplate` gained `enemySpawnPoints`/`itemSpawnPoints`
+      marker lists; `DungeonGenerator.PopulateRooms` independently rolls each spawn point (tunable
+      `enemySpawnChance`/`itemSpawnChance`) against a flat `enemyPool`/`itemPool`, skipping the
+      start room so the party's entry point stays safe. Runs *after* the NavMesh bake, not before -
+      spawned enemies carry a `NavMeshAgent`, which needs a real mesh to resolve onto at spawn time.
+      `CharacterData.characterPrefab` (on the data model since Step 1, unused until now) is what
+      actually gets instantiated - the user turned one hand-placed instance each of Goblin/Goblin
+      Archer/Goblin Mage into real prefabs and wired them back in. `DungeonManager.allEnemies` now
+      refreshes after every `BeginRun` instead of only scanning once at scene load, since enemies
+      are runtime-instantiated per floor now, not fixed at scene load. Surfaced and fixed a real
+      ordering bug along the way: `PartySelectionController` used to activate chosen party members
+      *before* `BeginRun` generated the floor, so their `NavMeshAgent`s tried to attach before any
+      NavMesh existed ("not close enough to NavMesh") - activation moved into `BeginRun`, after
+      generation completes. Deeper loot-table/difficulty-by-depth tuning is still future work -
+      floor depth doesn't exist as a concept yet (that's Step 3's `DescendToNextFloor`), so
+      per-depth scaling has nothing to key off yet.
 - [ ] Step 3 - real staircase-down trigger + `DungeonManager.DescendToNextFloor()` (regenerate,
       tear down the old floor, advance a floor counter) - the trigger-volume pattern
       `RestRoomTransition` already established (`OnTriggerEnter` + party-membership check) is the
