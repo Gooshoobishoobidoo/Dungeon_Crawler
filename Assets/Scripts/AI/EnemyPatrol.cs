@@ -12,11 +12,14 @@ public class EnemyPatrol : MonoBehaviour
 
     [Header("Detection")]
     public float detectionRadius = 6f;
+    public float detectionAngle = 360f; // full cone angle in degrees - 360 = old omnidirectional behavior
 
     public Character Character { get; private set; }
     public bool IsAlerted { get; private set; }
 
     private int waypointIndex;
+
+    private const float EyeHeight = 1f; // keeps the line-of-sight raycast from grazing the floor collider
 
     private void Awake()
     {
@@ -44,7 +47,7 @@ public class EnemyPatrol : MonoBehaviour
         foreach (Character member in DungeonManager.Instance.party)
         {
             if (member.isDead) continue;
-            if (Vector3.Distance(transform.position, member.transform.position) > detectionRadius) continue;
+            if (!CanSee(member)) continue;
 
             IsAlerted = true;
             Character.StopMoving();
@@ -53,6 +56,51 @@ public class EnemyPatrol : MonoBehaviour
         }
 
         return false;
+    }
+
+    // Range, then cone, then line-of-sight - cheapest checks first, so a raycast only happens for
+    // members that already passed the first two. Cone/LoS naturally reduce to "always true" when
+    // detectionAngle is left at 360 and nothing blocks the line, preserving today's plain-radius
+    // behavior for any enemy that hasn't been tuned.
+    private bool CanSee(Character member)
+    {
+        Vector3 eyePosition = transform.position + Vector3.up * EyeHeight;
+        Vector3 targetPosition = member.transform.position + Vector3.up * EyeHeight;
+        Vector3 toTarget = targetPosition - eyePosition;
+        float distance = toTarget.magnitude;
+
+        if (distance > detectionRadius) return false;
+
+        Vector3 flatDirection = toTarget;
+        flatDirection.y = 0;
+        if (flatDirection.sqrMagnitude > 0.0001f)
+        {
+            float angle = Vector3.Angle(transform.forward, flatDirection.normalized);
+            if (angle > detectionAngle * 0.5f) return false;
+        }
+
+        if (distance > 0.01f &&
+            Physics.Raycast(eyePosition, toTarget.normalized, out RaycastHit hit, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+        {
+            Character hitCharacter = hit.collider.GetComponentInParent<Character>();
+            if (hitCharacter != member) return false; // something else - a wall, another character - is in the way
+        }
+
+        return true;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = new Color(1f, 0.6f, 0.1f, 0.6f);
+        Gizmos.DrawWireSphere(transform.position, detectionRadius);
+
+        if (detectionAngle < 360f)
+        {
+            Quaternion leftRotation = Quaternion.AngleAxis(-detectionAngle * 0.5f, Vector3.up);
+            Quaternion rightRotation = Quaternion.AngleAxis(detectionAngle * 0.5f, Vector3.up);
+            Gizmos.DrawLine(transform.position, transform.position + leftRotation * transform.forward * detectionRadius);
+            Gizmos.DrawLine(transform.position, transform.position + rightRotation * transform.forward * detectionRadius);
+        }
     }
 
     private void Patrol()

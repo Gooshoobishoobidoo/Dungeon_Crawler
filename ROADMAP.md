@@ -128,7 +128,13 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
 
 ## Phase 6 — Polish
 
-- [ ] Smarter detection (vision cones / line-of-sight instead of a plain radius)
+- [x] Smarter detection - `EnemyPatrol` gained `detectionAngle` (full cone angle, default 360°
+      preserves the old omnidirectional behavior) and a `Physics.Raycast` line-of-sight check, both
+      gating `CheckForDetection` alongside the existing radius. A stationary guard's cone faces
+      whatever direction it's placed facing; a patrolling one sweeps naturally since `NavMeshAgent`
+      already rotates the transform to face movement. `OnDrawGizmosSelected` draws the radius/cone
+      for tuning. `CombatManager.Flee()` deliberately still uses plain radius - an already-engaged
+      enemy shouldn't "lose track" of you from a facing/cover technicality.
 - [ ] Real formation-based group movement (today the whole party converges on one clicked point)
 - [ ] Risk/skill on fleeing (distance checks, opportunity attacks) instead of an unconditional button
 - [x] Smarter enemy AI - `AssignEnemyActions`/`BuildEnemyTurn` now builds a real multi-entry queue
