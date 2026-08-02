@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 // PartySelection is deliberately first: TestScene.unity already has currentMode explicitly
 // serialized as 0, so making PartySelection index 0 starts every run there for free without
@@ -101,10 +102,41 @@ public class DungeonManager : MonoBehaviour
         if (dungeonGenerator != null)
         {
             dungeonGenerator.Generate();
-            foreach (Character member in party) member.WarpTo(dungeonGenerator.StartPosition);
+            WarpPartyToStart(dungeonGenerator.StartPosition);
         }
 
         currentMode = GameMode.Exploration;
+    }
+
+    // Small fixed cluster around the spawn point rather than warping everyone to the identical
+    // coordinate - even with a good spawn marker, stacking every character on one exact point is
+    // its own source of visual weirdness. Each candidate offset is checked against the NavMesh
+    // (same fallback-to-the-anchor-point pattern ExplorationController's formation movement
+    // already uses) since an offset can land outside the room if the spawn point sits close to a
+    // wall.
+    private const float SpawnSpacing = 1.5f;
+    private static readonly Vector3[] SpawnOffsets =
+    {
+        Vector3.zero,
+        new Vector3(-1f, 0f, -1f),
+        new Vector3(1f, 0f, -1f),
+        new Vector3(-1f, 0f, 1f),
+        new Vector3(1f, 0f, 1f),
+    };
+
+    private void WarpPartyToStart(Vector3 startPosition)
+    {
+        for (int i = 0; i < party.Count; i++)
+        {
+            Vector3 offset = SpawnOffsets[Mathf.Min(i, SpawnOffsets.Length - 1)] * SpawnSpacing;
+            Vector3 candidate = startPosition + offset;
+
+            Vector3 destination = NavMesh.SamplePosition(candidate, out NavMeshHit hit, SpawnSpacing * 2f, NavMesh.AllAreas)
+                ? hit.position
+                : startPosition;
+
+            party[i].WarpTo(destination);
+        }
     }
 
     public void GameOver()

@@ -75,7 +75,12 @@ public class DungeonGenerator : MonoBehaviour
         Dictionary<Vector2Int, RoomTemplate> instantiatedRooms = InstantiateRooms(start, openSides);
         OpenConnectedWalls(openSides, instantiatedRooms);
 
-        StartPosition = CellToWorld(start);
+        // Prefer the start room's own marked spawn point (a known-clear spot the room's author
+        // placed by hand) over the room prefab's raw origin, which could be anywhere - a corner,
+        // right next to a wall - depending on how that prefab happens to be modeled.
+        StartPosition = instantiatedRooms.TryGetValue(start, out RoomTemplate startTemplate) && startTemplate.spawnPoint != null
+            ? startTemplate.spawnPoint.position
+            : CellToWorld(start);
 
         if (staircaseCell != start)
         {

@@ -11,4 +11,12 @@ public class RoomTemplate : MonoBehaviour
     public GameObject eastWall;
     public GameObject southWall;
     public GameObject westWall;
+
+    // Optional marker for a known-good, wall-clear point inside this room. Only meaningful on
+    // whichever prefab is assigned as DungeonGenerator's startRoomPrefab today (that's the only
+    // room the party is actually placed into) - DungeonGenerator falls back to this room's own
+    // origin if left unset, which is what caused party members to occasionally warp into a wall
+    // (a room prefab's pivot isn't guaranteed to be a walkable point).
+    [Header("Spawn (used by the start room)")]
+    public Transform spawnPoint;
 }

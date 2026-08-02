@@ -172,6 +172,44 @@ genuinely different execution architecture (a live timeline, not a fixed sequenc
       with almost no travel left, making its attack feel like it fires instantly. Real fix (cast
       times, a dodge mechanic) is future work; this is a cheap mitigation until then.
 
+## Phase 7 — Procedural dungeon (roguelike)
+
+Moving off the single hand-built `TestScene` layout toward a real roguelike loop: each run
+generates a fresh floor, death resets everything (already true via `GameOverUI`'s scene reload,
+no cross-run persistence needed). Generation style is hand-built room prefabs, algorithmically
+arranged - not fully algorithmic tile carving - so room-building stays the same kind of hands-on
+Editor work as today, just at the scale of individual room chunks instead of whole areas. Layout
+topology is a branching graph: one big floor with many side rooms/branching paths, but only one
+required exit (a staircase down) - side branches are optional detours for loot, not alternate
+routes. Split into steps deliberately, same reasoning as Phase 4's Step 1/Step 2 split.
+
+- [x] **Step 1 - grid-based room layout**: `DungeonGenerator` runs a randomized growing-tree walk
+      on an integer grid (expands from a *random* already-placed cell each step, not always the
+      newest one, which is what produces branching side paths instead of one long corridor),
+      records which of each room's 4 cardinal sides connect to a neighbor, then instantiates the
+      chosen room prefab at each cell and disables just those connected walls via a new
+      `RoomTemplate` marker component (`northWall`/`eastWall`/`southWall`/`westWall`) the room
+      prefab's author wires up. A BFS over the resulting connection graph finds the room farthest
+      (by path distance) from the start, which becomes the staircase location - logged for now,
+      no trigger placed yet. A runtime-baked `NavMeshSurface` (`CollectObjects: Children`) replaces
+      the old per-area pre-baked NavMesh for generated floors. `DungeonManager.BeginRun` now calls
+      the generator and places the party at its start room via a new `Character.WarpTo`
+      (`NavMeshAgent.Warp`, so the agent's internal state stays in sync with the teleport instead
+      of just moving the transform). No enemies/items populate rooms yet, and the old hand-placed
+      `TestScene` zones/`RestRoomTransition` are untouched - both are Step 1 scope cuts, not bugs.
+- [ ] Step 2 - populate rooms: spawn-point marker components, enemy/item prefabs actually
+      instantiated via `CharacterData.characterPrefab` (already on the data model, unused until
+      now), loot/difficulty tuning.
+- [ ] Step 3 - real staircase-down trigger + `DungeonManager.DescendToNextFloor()` (regenerate,
+      tear down the old floor, advance a floor counter) - the trigger-volume pattern
+      `RestRoomTransition` already established (`OnTriggerEnter` + party-membership check) is the
+      natural template to reuse here.
+- [ ] Retire/repurpose `RestRoomTransition`'s old hardcoded two-zone role now that areas are
+      generated rather than fixed.
+- [ ] Loops/cycles in the layout graph - Step 1 is a tree (no closed loops), which already
+      satisfies "branching paths, one required exit" without cycle-detection complexity; possible
+      later polish, not required.
+
 ## Tech debt / backlog
 
 - [ ] Shared UI helper for the "labeled box with a Text child" pattern every procedural UI class
