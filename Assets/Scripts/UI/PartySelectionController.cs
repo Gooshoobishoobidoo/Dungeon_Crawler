@@ -55,9 +55,10 @@ public class PartySelectionController : MonoBehaviour
     {
         if (selected.Count == 0 || DungeonManager.Instance == null) return;
 
+        // Chosen candidates are activated by DungeonManager.BeginRun itself now, not here - it
+        // needs to happen after floor generation bakes a NavMesh, or every chosen character's
+        // NavMeshAgent logs "not close enough to NavMesh" trying to attach to nothing.
         List<Character> chosen = new List<Character>(selected);
-        foreach (Character c in chosen) c.gameObject.SetActive(true);
-
         DungeonManager.Instance.BeginRun(chosen);
         canvasGO.SetActive(false);
     }

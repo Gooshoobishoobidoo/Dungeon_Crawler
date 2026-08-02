@@ -38,6 +38,13 @@ public class DungeonGenerator : MonoBehaviour
     public int minRooms = 8;
     public int maxRooms = 14;
 
+    [Header("Population")]
+    public List<CharacterData> enemyPool = new List<CharacterData>();
+    [Range(0f, 1f)] public float enemySpawnChance = 0.5f;
+    public GameObject itemPickupPrefab;
+    public List<ItemData> itemPool = new List<ItemData>();
+    [Range(0f, 1f)] public float itemSpawnChance = 0.5f;
+
     // World-space position of the start room, for DungeonManager to place the party after
     // generation completes.
     public Vector3 StartPosition { get; private set; }
@@ -92,6 +99,10 @@ public class DungeonGenerator : MonoBehaviour
             navMeshSurface.BuildNavMesh();
         else
             Debug.LogWarning("DungeonGenerator has no NavMeshSurface component - the generated floor won't be walkable.");
+
+        // Population happens after the bake, not before - spawned enemies carry a NavMeshAgent,
+        // which needs a real NavMesh to resolve onto at spawn time.
+        PopulateRooms(start, instantiatedRooms);
     }
 
     // Randomized growing-tree walk on an integer grid: repeatedly expands from a *random* already-
@@ -194,6 +205,42 @@ public class DungeonGenerator : MonoBehaviour
             {
                 GameObject wall = WallFor(template, dir);
                 if (wall != null) wall.SetActive(false);
+            }
+        }
+    }
+
+    // Flat random pool + an independent per-point spawn-chance roll - the minimum viable version
+    // of "populated," not final loot/difficulty balancing (there's no floor-depth concept yet for
+    // that to key off anyway). Skips the start cell so the party's entry room stays safe.
+    private void PopulateRooms(Vector2Int start, Dictionary<Vector2Int, RoomTemplate> instantiatedRooms)
+    {
+        foreach (var entry in instantiatedRooms)
+        {
+            if (entry.Key == start) continue;
+            RoomTemplate template = entry.Value;
+
+            foreach (Transform point in template.enemySpawnPoints)
+            {
+                if (enemyPool.Count == 0 || Random.value > enemySpawnChance) continue;
+
+                CharacterData enemyData = enemyPool[Random.Range(0, enemyPool.Count)];
+                if (enemyData.characterPrefab == null)
+                {
+                    Debug.LogWarning($"CharacterData '{enemyData.characterName}' has no characterPrefab assigned - skipping spawn.");
+                    continue;
+                }
+
+                Instantiate(enemyData.characterPrefab, point.position, point.rotation, currentFloor);
+            }
+
+            foreach (Transform point in template.itemSpawnPoints)
+            {
+                if (itemPickupPrefab == null || itemPool.Count == 0 || Random.value > itemSpawnChance) continue;
+
+                GameObject instance = Instantiate(itemPickupPrefab, point.position, point.rotation, currentFloor);
+                ItemPickup pickup = instance.GetComponent<ItemPickup>();
+                if (pickup != null) pickup.item = itemPool[Random.Range(0, itemPool.Count)];
+                else Debug.LogWarning($"itemPickupPrefab '{itemPickupPrefab.name}' has no ItemPickup component.");
             }
         }
     }

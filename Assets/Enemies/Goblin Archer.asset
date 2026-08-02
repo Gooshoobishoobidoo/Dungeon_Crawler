@@ -30,5 +30,5 @@ MonoBehaviour:
   chaseLeashDistance: 2
   abilities:
   - {fileID: 11400000, guid: b53757a7d5f21f34e852f3c79ac5abc8, type: 2}
-  characterPrefab: {fileID: 0}
+  characterPrefab: {fileID: 7447916664994522189, guid: 9973db6b482070541961f8409ffc5f43, type: 3}
   portrait: {fileID: 0}

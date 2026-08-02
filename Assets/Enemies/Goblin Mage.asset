@@ -31,5 +31,5 @@ MonoBehaviour:
   abilities:
   - {fileID: 11400000, guid: 19260dffce05e3f4aab233e35fadfa5b, type: 2}
   - {fileID: 11400000, guid: 7b0402d9a99586546af6e3a2a1b8f58b, type: 2}
-  characterPrefab: {fileID: 0}
+  characterPrefab: {fileID: 4024742392700605820, guid: a11f47dccbe11834f87694089ff3d8da, type: 3}
   portrait: {fileID: 0}

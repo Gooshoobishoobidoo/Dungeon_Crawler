@@ -41,6 +41,16 @@ public class DungeonManager : MonoBehaviour
 
     private void Start()
     {
+        RefreshEnemyList();
+    }
+
+    // Re-scans for EnemyPatrol instances in the scene - needed after every BeginRun now that
+    // enemies are runtime-instantiated per generated floor rather than fixed at scene load (the
+    // Start() call above only ever found scene-placed ones and would otherwise miss everything
+    // DungeonGenerator just spawned).
+    private void RefreshEnemyList()
+    {
+        allEnemies.Clear();
         allEnemies.AddRange(FindObjectsByType<EnemyPatrol>());
     }
 
@@ -91,10 +101,11 @@ public class DungeonManager : MonoBehaviour
         }
     }
 
-    // Called by PartySelectionController once the player confirms who they're bringing.
-    // Generates a fresh floor before dropping the party into it - a new run always means a new
-    // layout (roguelike: no cross-run persistence), which a scene reload after Game Over already
-    // guarantees happens from a clean slate.
+    // Called by PartySelectionController once the player confirms who they're bringing - chosen
+    // party members are still inactive at this point (PartySelectionController.Awake left them
+    // that way; it no longer activates them itself). Generates a fresh floor before dropping the
+    // party into it - a new run always means a new layout (roguelike: no cross-run persistence),
+    // which a scene reload after Game Over already guarantees happens from a clean slate.
     public void BeginRun(List<Character> chosenParty)
     {
         party = chosenParty;
@@ -102,7 +113,18 @@ public class DungeonManager : MonoBehaviour
         if (dungeonGenerator != null)
         {
             dungeonGenerator.Generate();
+            RefreshEnemyList();
+
+            // Activated only after the floor's NavMesh is baked - a NavMeshAgent snaps onto the
+            // nearest NavMesh the instant its GameObject activates, so activating any earlier
+            // (e.g. before Generate() has run) logs "not close enough to NavMesh" for every
+            // party member, since nothing has been baked yet at that point.
+            foreach (Character member in party) member.gameObject.SetActive(true);
             WarpPartyToStart(dungeonGenerator.StartPosition);
+        }
+        else
+        {
+            foreach (Character member in party) member.gameObject.SetActive(true);
         }
 
         currentMode = GameMode.Exploration;

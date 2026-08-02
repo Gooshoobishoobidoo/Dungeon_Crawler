@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Marker component on the root of a hand-built room prefab. Every room prefab is authored to the
@@ -19,4 +20,11 @@ public class RoomTemplate : MonoBehaviour
     // (a room prefab's pivot isn't guaranteed to be a walkable point).
     [Header("Spawn (used by the start room)")]
     public Transform spawnPoint;
+
+    // Markers for where DungeonGenerator.PopulateRooms may place an enemy/item - ignored on
+    // whichever room ends up as the start room (population explicitly skips that cell so the
+    // party's entry room stays safe).
+    [Header("Population Spawn Points (ignored on the start room)")]
+    public List<Transform> enemySpawnPoints = new List<Transform>();
+    public List<Transform> itemSpawnPoints = new List<Transform>();
 }
