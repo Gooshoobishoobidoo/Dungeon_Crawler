@@ -19,7 +19,7 @@ MonoBehaviour:
   maxStamina: 120
   speed: 3.5
   initiative: 3
-  moveStaminaCostPerUnit: 3
+  moveStaminaCostPerUnit: 2.5
   attackPower: 15
   defense: 8
   critChance: 0.1
@@ -27,6 +27,7 @@ MonoBehaviour:
   staminaRegenPerSecond: 2
   focusRegenPerSecond: 2
   restRegenPerSecond: 4
+  chaseLeashDistance: 0
   abilities:
   - {fileID: 11400000, guid: 9385dc14a5dc378dad46b5e455bf6d98, type: 2}
   - {fileID: 11400000, guid: ac321fc1bbec773429c1196169314f85, type: 2}

@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5611641ea0472eef8e4e6bc4da36b401, type: 3}
-  m_Name: HealingPotion
+  m_Name: RegenerationPotion
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  itemName: Healing Potion
-  description: Restores a modest amount of health when consumed.
+  itemName: Regeneration Potion
+  description: Restores a modest amount of health and mana when consumed.
   itemType: 0
-  healAmount: 25
-  manaAmount: 0
+  healAmount: 20
+  manaAmount: 20
   staminaAmount: 0
   useTime: 2.5
   currencyValue: 0

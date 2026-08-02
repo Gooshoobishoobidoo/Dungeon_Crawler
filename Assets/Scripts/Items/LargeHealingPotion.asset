@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5611641ea0472eef8e4e6bc4da36b401, type: 3}
-  m_Name: HealingPotion
+  m_Name: LargeHealingPotion
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  itemName: Healing Potion
-  description: Restores a modest amount of health when consumed.
+  itemName: Large Healing Potion
+  description: Restores a large amount of health when consumed.
   itemType: 0
-  healAmount: 25
+  healAmount: 50
   manaAmount: 0
   staminaAmount: 0
-  useTime: 2.5
+  useTime: 4
   currencyValue: 0
   icon: {fileID: 0}

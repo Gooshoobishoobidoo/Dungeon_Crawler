@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a78cb028abcaa384e9969cb4818a2d60, type: 3}
+  m_Name: Goblin Archer
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterData
+  characterName: Goblin Archer
+  characterClass: 2
+  maxHealth: 30
+  maxMana: 0
+  maxStamina: 75
+  speed: 4
+  initiative: 5
+  moveStaminaCostPerUnit: 0.5
+  attackPower: 7
+  defense: 3
+  critChance: 0.25
+  manaRegenPerSecond: 0
+  staminaRegenPerSecond: 3
+  focusRegenPerSecond: 0
+  restRegenPerSecond: 5
+  chaseLeashDistance: 2
+  abilities:
+  - {fileID: 11400000, guid: b53757a7d5f21f34e852f3c79ac5abc8, type: 2}
+  characterPrefab: {fileID: 0}
+  portrait: {fileID: 0}

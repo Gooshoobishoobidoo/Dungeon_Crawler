@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a78cb028abcaa384e9969cb4818a2d60, type: 3}
+  m_Name: Goblin Mage
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterData
+  characterName: Goblin Mage
+  characterClass: 2
+  maxHealth: 20
+  maxMana: 50
+  maxStamina: 35
+  speed: 7
+  initiative: 5
+  moveStaminaCostPerUnit: 0.5
+  attackPower: 5
+  defense: 1
+  critChance: 0.1
+  manaRegenPerSecond: 3
+  staminaRegenPerSecond: 2
+  focusRegenPerSecond: 4
+  restRegenPerSecond: 3
+  chaseLeashDistance: 2
+  abilities:
+  - {fileID: 11400000, guid: 19260dffce05e3f4aab233e35fadfa5b, type: 2}
+  - {fileID: 11400000, guid: 7b0402d9a99586546af6e3a2a1b8f58b, type: 2}
+  characterPrefab: {fileID: 0}
+  portrait: {fileID: 0}

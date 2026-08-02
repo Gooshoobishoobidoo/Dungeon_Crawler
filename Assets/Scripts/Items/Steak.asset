@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5611641ea0472eef8e4e6bc4da36b401, type: 3}
-  m_Name: HealingPotion
+  m_Name: Steak
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  itemName: Healing Potion
-  description: Restores a modest amount of health when consumed.
+  itemName: Steak
+  description: 
   itemType: 0
-  healAmount: 25
+  healAmount: 15
   manaAmount: 0
-  staminaAmount: 0
+  staminaAmount: 30
   useTime: 2.5
   currencyValue: 0
   icon: {fileID: 0}

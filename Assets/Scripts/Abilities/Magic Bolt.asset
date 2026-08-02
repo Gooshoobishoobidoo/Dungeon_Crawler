@@ -17,7 +17,7 @@ MonoBehaviour:
   abilityType: 0
   manaCost: 10
   staminaCost: 0
-  cooldown: 2
+  cooldown: 4
   range: 20
   damage: 12
   aoeRadius: 1

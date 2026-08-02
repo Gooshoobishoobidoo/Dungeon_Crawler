@@ -10,26 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a78cb028abcaa384e9969cb4818a2d60, type: 3}
-  m_Name: Goblin
+  m_Name: Rogue
   m_EditorClassIdentifier: Assembly-CSharp::CharacterData
-  characterName: Goblin
+  characterName: Rogue
   characterClass: 2
-  maxHealth: 35
-  maxMana: 0
-  maxStamina: 50
-  speed: 4.5
-  initiative: 5
+  maxHealth: 45
+  maxMana: 15
+  maxStamina: 150
+  speed: 9
+  initiative: 4
   moveStaminaCostPerUnit: 1
-  attackPower: 10
-  defense: 2
-  critChance: 0.2
-  manaRegenPerSecond: 0
-  staminaRegenPerSecond: 4
-  focusRegenPerSecond: 0
-  restRegenPerSecond: 5
-  chaseLeashDistance: 3
+  attackPower: 20
+  defense: 4
+  critChance: 0.35
+  manaRegenPerSecond: 1
+  staminaRegenPerSecond: 6
+  focusRegenPerSecond: 2
+  restRegenPerSecond: 8
+  chaseLeashDistance: 0
   abilities:
   - {fileID: 11400000, guid: 7b0402d9a99586546af6e3a2a1b8f58b, type: 2}
   - {fileID: 11400000, guid: 9385dc14a5dc378dad46b5e455bf6d98, type: 2}
+  - {fileID: 11400000, guid: ac321fc1bbec773429c1196169314f85, type: 2}
   characterPrefab: {fileID: 0}
   portrait: {fileID: 0}
