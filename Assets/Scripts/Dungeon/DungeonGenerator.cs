@@ -3,9 +3,8 @@ using Unity.AI.Navigation;
 using UnityEngine;
 
 // Assembles one floor from hand-built room prefabs (RoomTemplate) arranged on an integer grid,
-// then bakes a NavMesh over the result. Step 1 of "making the dungeon work": layout + walkable
-// NavMesh only - no enemy/item population and no real staircase-down trigger yet (both future
-// steps; see ROADMAP.md).
+// bakes a NavMesh over the result, then populates it with enemies/items and a staircase down to
+// the next floor. See ROADMAP.md for the step-by-step history of this system.
 public class DungeonGenerator : MonoBehaviour
 {
     private enum Direction { North, East, South, West }
@@ -31,6 +30,10 @@ public class DungeonGenerator : MonoBehaviour
 
     [Header("Room Prefabs")]
     public GameObject startRoomPrefab;
+    // Always placed at whichever room DungeonGenerator determines is farthest (by path distance)
+    // from the start - the one required exit from a floor. Author this prefab with a StaircaseDown
+    // trigger volume inside it.
+    public GameObject staircaseRoomPrefab;
     public List<GameObject> roomPrefabs = new List<GameObject>();
 
     [Header("Layout")]
@@ -59,9 +62,9 @@ public class DungeonGenerator : MonoBehaviour
 
     public void Generate()
     {
-        if (startRoomPrefab == null || roomPrefabs.Count == 0)
+        if (startRoomPrefab == null || staircaseRoomPrefab == null || roomPrefabs.Count == 0)
         {
-            Debug.LogError("DungeonGenerator needs a startRoomPrefab and at least one entry in roomPrefabs before it can generate.");
+            Debug.LogError("DungeonGenerator needs a startRoomPrefab, a staircaseRoomPrefab, and at least one entry in roomPrefabs before it can generate.");
             return;
         }
 
@@ -79,7 +82,7 @@ public class DungeonGenerator : MonoBehaviour
         Dictionary<Vector2Int, HashSet<Direction>> openSides = BuildGraph(start);
         Vector2Int staircaseCell = FindFarthestCell(start, openSides);
 
-        Dictionary<Vector2Int, RoomTemplate> instantiatedRooms = InstantiateRooms(start, openSides);
+        Dictionary<Vector2Int, RoomTemplate> instantiatedRooms = InstantiateRooms(start, staircaseCell, openSides);
         OpenConnectedWalls(openSides, instantiatedRooms);
 
         // Prefer the start room's own marked spawn point (a known-clear spot the room's author
@@ -88,12 +91,6 @@ public class DungeonGenerator : MonoBehaviour
         StartPosition = instantiatedRooms.TryGetValue(start, out RoomTemplate startTemplate) && startTemplate.spawnPoint != null
             ? startTemplate.spawnPoint.position
             : CellToWorld(start);
-
-        if (staircaseCell != start)
-        {
-            Debug.Log($"Staircase location: cell {staircaseCell} (world {CellToWorld(staircaseCell)}) " +
-                      "- no trigger placed yet, that's a future step.");
-        }
 
         if (navMeshSurface != null)
             navMeshSurface.BuildNavMesh();
@@ -176,13 +173,15 @@ public class DungeonGenerator : MonoBehaviour
         return farthest;
     }
 
-    private Dictionary<Vector2Int, RoomTemplate> InstantiateRooms(Vector2Int start, Dictionary<Vector2Int, HashSet<Direction>> openSides)
+    private Dictionary<Vector2Int, RoomTemplate> InstantiateRooms(Vector2Int start, Vector2Int staircaseCell, Dictionary<Vector2Int, HashSet<Direction>> openSides)
     {
         var instantiatedRooms = new Dictionary<Vector2Int, RoomTemplate>();
 
         foreach (Vector2Int cell in openSides.Keys)
         {
-            GameObject prefab = cell == start ? startRoomPrefab : roomPrefabs[Random.Range(0, roomPrefabs.Count)];
+            GameObject prefab = cell == start ? startRoomPrefab
+                : cell == staircaseCell ? staircaseRoomPrefab
+                : roomPrefabs[Random.Range(0, roomPrefabs.Count)];
             GameObject instance = Instantiate(prefab, CellToWorld(cell), Quaternion.identity, currentFloor);
 
             RoomTemplate template = instance.GetComponent<RoomTemplate>();

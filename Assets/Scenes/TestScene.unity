@@ -1028,7 +1028,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &396346051
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1817,7 +1817,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &607143702
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2227,6 +2227,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DungeonGenerator
   startRoomPrefab: {fileID: 7473805604446940252, guid: 61d1f5e87be12494190266e99526ac17, type: 3}
+  staircaseRoomPrefab: {fileID: 7473805604446940252, guid: 329e916ad0e8b79478245bdad7991f18, type: 3}
   roomPrefabs:
   - {fileID: 2492615574901653188, guid: d27cbe52e504f51409e94d72a14857b8, type: 3}
   cellSize: 50
@@ -3029,6 +3030,7 @@ MonoBehaviour:
   - {fileID: 2057041603}
   dungeonGenerator: {fileID: 941247515}
   currentMode: 0
+  currentFloorNumber: 1
   currency: 0
 --- !u!4 &1603766550
 Transform:
@@ -3156,7 +3158,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1702702580
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4013,7 +4015,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &2057041603
 MonoBehaviour:
   m_ObjectHideFlags: 0

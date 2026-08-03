@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -27,6 +28,7 @@ public class DungeonManager : MonoBehaviour
 
     [Header("State")]
     public GameMode currentMode = GameMode.PartySelection;
+    public int currentFloorNumber = 1;
 
     // Shared party-wide pool - currency isn't really an "item" any one character carries,
     // unlike everything else in inventory which is per-character.
@@ -109,6 +111,7 @@ public class DungeonManager : MonoBehaviour
     public void BeginRun(List<Character> chosenParty)
     {
         party = chosenParty;
+        currentFloorNumber = 1;
 
         if (dungeonGenerator != null)
         {
@@ -128,6 +131,31 @@ public class DungeonManager : MonoBehaviour
         }
 
         currentMode = GameMode.Exploration;
+    }
+
+    // Called by StaircaseDown once the player confirms descending. Doesn't regenerate
+    // synchronously - StaircaseDown's own trigger/confirm-click callback is still on the call
+    // stack at the moment this is called, and its GameObject lives inside the very floor
+    // hierarchy DungeonGenerator.Generate() is about to DestroyImmediate. Deferring one frame
+    // (DungeonManager itself is never part of that teardown) guarantees that callback has fully
+    // returned before anything gets destroyed.
+    public void DescendToNextFloor()
+    {
+        StartCoroutine(DescendNextFrame());
+    }
+
+    private IEnumerator DescendNextFrame()
+    {
+        yield return null;
+
+        currentFloorNumber++;
+
+        if (dungeonGenerator != null)
+        {
+            dungeonGenerator.Generate();
+            RefreshEnemyList();
+            WarpPartyToStart(dungeonGenerator.StartPosition);
+        }
     }
 
     // Small fixed cluster around the spawn point rather than warping everyone to the identical
@@ -150,6 +178,12 @@ public class DungeonManager : MonoBehaviour
     {
         for (int i = 0; i < party.Count; i++)
         {
+            // A dead party member's NavMeshAgent is disabled (see Character.Die()), and Warp on a
+            // disabled agent doesn't work - harmless to skip here since a dead character isn't
+            // shown moving around anyway. Only reachable via DescendToNextFloor today (BeginRun's
+            // party is always freshly chosen and fully alive), but this helper is shared by both.
+            if (party[i].isDead) continue;
+
             Vector3 offset = SpawnOffsets[Mathf.Min(i, SpawnOffsets.Length - 1)] * SpawnSpacing;
             Vector3 candidate = startPosition + offset;
 
