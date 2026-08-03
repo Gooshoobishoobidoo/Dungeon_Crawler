@@ -213,10 +213,21 @@ routes. Split into steps deliberately, same reasoning as Phase 4's Step 1/Step 2
       generation completes. Deeper loot-table/difficulty-by-depth tuning is still future work -
       floor depth doesn't exist as a concept yet (that's Step 3's `DescendToNextFloor`), so
       per-depth scaling has nothing to key off yet.
-- [ ] Step 3 - real staircase-down trigger + `DungeonManager.DescendToNextFloor()` (regenerate,
-      tear down the old floor, advance a floor counter) - the trigger-volume pattern
-      `RestRoomTransition` already established (`OnTriggerEnter` + party-membership check) is the
-      natural template to reuse here.
+- [x] **Step 3 - staircase + floor progression**: new `StaircaseDown` trigger, modeled on
+      `RestRoomTransition`'s pattern (`OnTriggerEnter` + party-membership check) but simpler - no
+      doors to seal, since confirming replaces the whole floor rather than gating between two fixed
+      zones. Shows a "Descend?" confirm prompt (matches `RestRoomTransition`'s "Continue?" UX rather
+      than transitioning instantly) and now also dismisses itself on `OnTriggerExit` if the party
+      leaves without confirming. `DungeonGenerator` gained `staircaseRoomPrefab`, always placed at
+      the room `FindFarthestCell` determines is the required exit (previously just logged).
+      `DungeonManager.DescendToNextFloor()` regenerates and advances `currentFloorNumber`, but
+      defers actual generation by one frame via a coroutine - `StaircaseDown`'s own confirm-click
+      callback is still on the call stack when it's called, and its GameObject lives inside the
+      very floor hierarchy `Generate()`'s `DestroyImmediate` is about to tear down, so running
+      synchronously would destroy an object while its own method is still executing. Also fixed
+      `WarpPartyToStart` to skip dead party members (`NavMeshAgent.Warp` doesn't work on the
+      disabled agent `Character.Die()` leaves behind) - unreachable via `BeginRun`'s always-fresh
+      party, but a real bug for `DescendToNextFloor`, which shares that same helper.
 - [ ] Retire/repurpose `RestRoomTransition`'s old hardcoded two-zone role now that areas are
       generated rather than fixed.
 - [ ] Loops/cycles in the layout graph - Step 1 is a tree (no closed loops), which already
