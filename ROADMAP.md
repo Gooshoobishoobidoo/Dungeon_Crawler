@@ -234,6 +234,28 @@ routes. Split into steps deliberately, same reasoning as Phase 4's Step 1/Step 2
       satisfies "branching paths, one required exit" without cycle-detection complexity; possible
       later polish, not required.
 
+## Phase 8 — Camera (done)
+
+Procedurally generated floors (Phase 7) exposed a real gap: the `Main Camera` was a single
+hand-placed, fully static `Transform`, tuned once for the old fixed two-zone layout - the party
+could walk off-screen the moment a generated floor extended past that original framing.
+
+- [x] **Follow + zoom/pan/orbit**: new `CameraController` (`Assets/Scripts/Camera/`) follows the
+      living party's centroid every `LateUpdate` (`Vector3.SmoothDamp`, so it doesn't jitter as
+      characters move), skipping dead members and leaving the camera in place if the whole party
+      list is empty/dead (harmless on the `PartySelection` screen). Scroll wheel zooms
+      (`currentDistance`, clamped, scaled by the raw per-event scroll delta rather than
+      `Time.deltaTime` since scroll is already a discrete impulse). WASD/arrow keys pan along the
+      camera's own flattened right/forward axes (screen-relative regardless of viewing angle),
+      clamped to a max distance, with a dedicated recenter key (`Space`) snapping pan back to zero
+      - no auto-recenter, by design. Q/E orbit around the target: orbit drives the camera's yaw
+      directly (rotating the whole authored base rotation around world up, preserving the original
+      pitch) and rotates the position offset by that same angle, so the camera stays aimed at the
+      party throughout the orbit with no separate `LookAt` needed - which would otherwise fight
+      panning (continuously re-aiming at the party while the player is deliberately trying to look
+      somewhere else defeats the point of panning). Pan and orbit are fully independent of each
+      other as a result - neither resets the other.
+
 ## Tech debt / backlog
 
 - [ ] Shared UI helper for the "labeled box with a Text child" pattern every procedural UI class
